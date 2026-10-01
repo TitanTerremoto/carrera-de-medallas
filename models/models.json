@@ -1,0 +1,52 @@
+{
+  "pikachu": {
+    "file": "pikachu.gltf",
+    "source": "https://cobblemon.tools/pokedex/pokemon/pikachu/models/pikachu.gltf",
+    "rotationY": 180,
+    "scale": 1,
+    "animations": {
+      "idle": "animation.pikachu.ground_idle",
+      "move": "animation.pikachu.ground_run",
+      "cry": "animation.pikachu.cry",
+      "happy": "animation.pikachu.dance",
+      "sad": "animation.pikachu.recoil"
+    }
+  },
+  "charmander": {
+    "file": "charmander.gltf",
+    "source": "https://cobblemon.tools/pokedex/pokemon/charmander/models/charmander.gltf",
+    "rotationY": 180,
+    "scale": 1,
+    "animations": {
+      "idle": "animation.charmander.ground_idle",
+      "move": "animation.charmander.ground_walk",
+      "cry": "animation.charmander.cry",
+      "happy": "animation.charmander.special"
+    }
+  },
+  "squirtle": {
+    "file": "squirtle.gltf",
+    "source": "https://cobblemon.tools/pokedex/pokemon/squirtle/models/squirtle.gltf",
+    "rotationY": 180,
+    "scale": 1,
+    "animations": {
+      "idle": "animation.squirtle.ground_idle",
+      "move": "animation.squirtle.ground_run",
+      "cry": "animation.squirtle.cry",
+      "happy": "animation.squirtle.quirk_ground_idle",
+      "sad": "animation.squirtle.recoil"
+    }
+  },
+  "bulbasaur": {
+    "file": "bulbasaur.gltf",
+    "source": "https://cobblemon.tools/pokedex/pokemon/bulbasaur/models/bulbasaur.gltf",
+    "rotationY": 180,
+    "scale": 1,
+    "animations": {
+      "idle": "animation.bulbasaur.ground_idle",
+      "move": "animation.bulbasaur.ground_walk",
+      "cry": "animation.bulbasaur.cry",
+      "sad": "animation.bulbasaur.recoil"
+    }
+  }
+}

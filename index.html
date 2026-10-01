@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pokémon: Carrera de Medallas</title>
+    <meta name="description" content="Juego de mesa de preguntas para 4 jugadores, en una pantalla o desde los celulares." />
+    <link rel="stylesheet" href="styles.css?v=20" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1 class="brand">
+        <svg class="brand-ball" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29" fill="#fff" stroke="#1f2933" stroke-width="4"/><path d="M3 32 A29 29 0 0 1 61 32 Z" fill="#e3350d" stroke="#1f2933" stroke-width="4"/><rect x="3" y="29" width="58" height="6" fill="#1f2933"/><circle cx="32" cy="32" r="10" fill="#fff" stroke="#1f2933" stroke-width="4"/></svg>
+        <span class="brand-poke">Pokémon</span>
+        <span class="brand-sub">Carrera de Medallas</span>
+      </h1>
+      <nav class="topbar-actions" aria-label="Controles de la partida">
+        <button type="button" class="btn btn-ghost" id="btnRules">❓ Cómo jugar</button>
+        <button type="button" class="btn btn-ghost" id="btnSound" aria-pressed="true">🔊 Sonido</button>
+        <span class="room-badge" id="roomBadge" hidden></span>
+        <button type="button" class="btn btn-ghost" id="btnTester">🤖 Modo tester</button>
+        <button type="button" class="btn btn-ghost" id="btnRec" hidden>🎥 Vista de grabación</button>
+        <button type="button" class="btn btn-ghost" id="btnRestart" hidden>↻ Reiniciar</button>
+        <button type="button" class="btn btn-ghost" id="btnSetup" hidden>⚙ Configuración</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- ═════════ Pantalla de configuración ═════════ -->
+      <section id="screenSetup" class="screen setup" aria-labelledby="setupTitle">
+        <div class="setup-intro card">
+          <h2 id="setupTitle">¡Prepara a tus cuatro Entrenadores Pokémon!</h2>
+          <p>
+            Recorre Kanto, responde preguntas y consigue las <strong>4 medallas de gimnasio</strong>.
+            Cada <strong>3 aciertos seguidos</strong> ganas una medalla. Con las 4, vuelve a <strong>Pueblo Paleta</strong>
+            y vence el <strong>desafío de la Liga Pokémon</strong>: ¡el primero en lograrlo es Campeón!
+          </p>
+          <ul class="category-cards" id="categoryCards"></ul>
+        </div>
+
+        <section class="card online-card" aria-labelledby="onlineTitle">
+          <h2 id="onlineTitle">🌐 Jugar desde celulares</h2>
+          <div class="online-panel" id="onlinePanel"></div>
+        </section>
+
+        <section class="card tester-card" aria-labelledby="testerTitle">
+          <div>
+            <h2 id="testerTitle">🤖 Modo tester</h2>
+            <p class="room-help">
+              Mira una partida completa sin jugadores: bots lanzan el dado, responden y avanzan solos. Los asientos
+              que ya tengan nombre (o un celular conectado) se respetan; el resto se completa con bots.
+            </p>
+          </div>
+          <button type="button" class="btn btn-primary" id="btnBotGame">▶ Ver una partida automática</button>
+        </section>
+
+        <form id="setupForm" class="setup-form" novalidate>
+          <div class="player-setup-grid" id="playerSetup"></div>
+          <p class="setup-hint" id="setupHint" role="status"></p>
+          <button type="submit" class="btn btn-primary btn-big" id="btnStart" disabled>¡Comenzar partida!</button>
+        </form>
+      </section>
+
+      <!-- ═════════ Pantalla de juego ═════════ -->
+      <section id="screenGame" class="screen game" hidden aria-label="Tablero de juego">
+        <div class="game-layout">
+          <!-- Espacios para las cámaras (solo en la vista de grabación) -->
+          <div class="cam-col cam-left" id="camLeft" aria-hidden="true"></div>
+
+          <!-- Área de juego: tablero + ventanas de pregunta/eventos (nunca tapan las cámaras) -->
+          <div class="play-area" id="playArea">
+          <div class="board-wrap">
+            <!-- Tablero 3D (view3d/). Si el navegador no puede mostrarlo, queda el 2D de abajo. -->
+            <div class="stage3d" id="stage3d">
+              <div class="stage-canvas"></div>
+              <div class="stage-hud" id="stageHud">
+                <div class="stage-banner" id="stageBanner" aria-live="polite"></div>
+              </div>
+              <button type="button" class="btn stage-cam-btn" id="btnCamMode">🎬 Cámara: automática</button>
+            </div>
+            <div class="board" id="board">
+              <div class="board-center" id="boardCenter">
+                <div class="board-logo" aria-hidden="true">
+                  <span>Carrera de</span>
+                  <strong>Medallas</strong>
+                </div>
+
+                <!-- Panel del turno: en pantallas chicas se mueve debajo del tablero -->
+                <section class="turn-panel" id="turnPanel" aria-live="polite" aria-label="Turno actual">
+                  <div class="turn-head">
+                    <div class="turn-token" id="turnToken"></div>
+                    <div>
+                      <span class="turn-label">Turno de</span>
+                      <strong class="turn-name" id="turnName">—</strong>
+                    </div>
+                  </div>
+
+                  <div class="dice-row">
+                    <div class="dice-block" id="dice" aria-hidden="true"><span id="diceNum">?</span></div>
+                    <div class="dice-side">
+                      <button type="button" class="btn btn-primary" id="btnRoll">👊 ¡Golpear el bloque!</button>
+                      <span class="dice-result" id="diceResult">Aún sin lanzar</span>
+                    </div>
+                  </div>
+
+                  <div class="streak" id="streakBox">
+                    <div class="streak-pips" id="streakPips"></div>
+                    <span class="streak-text" id="streakText">0 de 3</span>
+                  </div>
+
+                  <div class="turn-medals" id="turnMedals" aria-label="Medallas del jugador actual"></div>
+
+                  <div class="log">
+                    <h3>Últimos eventos</h3>
+                    <ol id="logList"></ol>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <div class="cam-col cam-right" id="camRight" aria-hidden="true"></div>
+
+          <aside class="sidebar">
+            <div id="panelSlot"></div>
+            <section class="card online-card" aria-labelledby="onlineGameTitle">
+              <h2 id="onlineGameTitle">🌐 Sala en línea</h2>
+              <div class="online-panel" id="onlinePanelGame"></div>
+            </section>
+            <section class="card players-card" aria-labelledby="playersTitle">
+              <h2 id="playersTitle">Entrenadores</h2>
+              <ol class="players-list" id="playersList"></ol>
+            </section>
+            <section class="card legend-card" aria-labelledby="legendTitle">
+              <h2 id="legendTitle">Leyenda</h2>
+              <ul class="legend" id="legend"></ul>
+            </section>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <!-- ═════════ Ventanas (overlays) ═════════ -->
+
+    <div class="overlay" id="resumeDialog" hidden>
+      <div class="dialog card" role="dialog" aria-modal="true" aria-labelledby="resumeTitle">
+        <h2 id="resumeTitle">Hay una partida guardada</h2>
+        <p id="resumeText"></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-primary" id="btnResume">▶ Continuar partida</button>
+          <button type="button" class="btn" id="btnNewFromResume">✚ Nueva partida</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="questionDialog" hidden>
+      <article class="dialog question-card" role="dialog" aria-modal="true" aria-labelledby="qText">
+        <header class="q-header" id="qHeader">
+          <span class="q-icon" id="qIcon"></span>
+          <div>
+            <span class="q-mode" id="qMode"></span>
+            <strong class="q-cat" id="qCat"></strong>
+          </div>
+          <span class="q-player" id="qPlayer"></span>
+        </header>
+        <div class="q-body">
+          <div class="q-streak" id="qStreak"></div>
+          <div class="q-timer" id="qTimer" role="timer" aria-live="off">
+            <div class="q-timer-fill" id="qTimerFill"></div>
+            <span class="q-timer-text" id="qTimerText"></span>
+          </div>
+          <div class="q-art" id="qArt"></div>
+          <p class="q-text" id="qText"></p>
+          <div class="q-options" id="qOptions"></div>
+          <p class="remote-wait" hidden></p>
+          <div class="q-feedback" id="qFeedback" hidden>
+            <div class="q-reveal" id="qReveal"></div>
+            <strong id="qVerdict"></strong>
+            <p id="qExplain"></p>
+            <p class="q-outcome" id="qOutcome"></p>
+            <button type="button" class="btn btn-primary" id="btnQContinue">Continuar ➜</button>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="overlay" id="infoDialog" hidden>
+      <div class="dialog card info-card" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+        <div class="info-icon" id="infoIcon"></div>
+        <h2 id="infoTitle"></h2>
+        <p id="infoText"></p>
+        <p class="remote-wait" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-primary" id="btnInfoOk">Continuar ➜</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="chooseDialog" hidden>
+      <div class="dialog card" role="dialog" aria-modal="true" aria-labelledby="chooseTitle">
+        <h2 id="chooseTitle">¡Centro Pokémon!</h2>
+        <p>Elige la categoría de tu pregunta. Cuenta como una pregunta normal para tu racha.</p>
+        <div class="choose-grid" id="chooseGrid"></div>
+        <p class="remote-wait" hidden></p>
+      </div>
+    </div>
+
+    <div class="overlay" id="medalDialog" hidden>
+      <div class="dialog card medal-card" role="dialog" aria-modal="true" aria-labelledby="medalTitle">
+        <div class="medal-big" id="medalBig"></div>
+        <h2 id="medalTitle"></h2>
+        <p id="medalText"></p>
+        <p class="remote-wait" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-primary" id="btnMedalOk">¡Genial! ➜</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay overlay-top" id="confirmDialog" hidden>
+      <div class="dialog card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <h2 id="confirmTitle"></h2>
+        <p id="confirmText"></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-danger" id="btnConfirmYes">Sí, continuar</button>
+          <button type="button" class="btn" id="btnConfirmNo" data-autofocus>Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay overlay-top" id="rulesDialog" hidden>
+      <article class="dialog card rules" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+        <h2 id="rulesTitle">Cómo jugar</h2>
+        <section>
+          <h3>🎯 Objetivo</h3>
+          <p>
+            Juegan 4 entrenadores por turnos. Consigue las <strong>4 medallas de gimnasio</strong> (Tipos, Pokédex,
+            Habilidades y Cambalache), vuelve a <strong>Pueblo Paleta</strong> y vence el <strong>desafío de la Liga
+            Pokémon</strong> para ser Campeón.
+          </p>
+        </section>
+        <section>
+          <h3>🎲 Flujo del turno</h3>
+          <ol>
+            <li>Golpea el <em>bloque de dado</em> (solo una vez por turno): los números del 1 al 10 giran a toda velocidad y sale uno al azar.</li>
+            <li>Tu ficha avanza casillero por casillero, en sentido horario.</li>
+            <li>Se aplica el efecto de la casilla donde caes.</li>
+            <li>Si hay pregunta, respóndela. Al resolver el evento, el turno pasa al siguiente jugador.</li>
+          </ol>
+        </section>
+        <section>
+          <h3>❔ Preguntas</h3>
+          <p>
+            Cada pregunta tiene cuatro opciones y una sola correcta. Solo puedes responder una vez; después se muestra la
+            respuesta correcta y una breve explicación. Las preguntas no se repiten hasta agotar las de su categoría.
+          </p>
+        </section>
+        <section>
+          <h3>🔥 Racha de tres aciertos</h3>
+          <p>
+            Cada jugador tiene su propia racha, que se conserva entre turnos. Un acierto suma 1; un error la reinicia a 0.
+            Los aciertos pueden ser de categorías distintas. Al llegar a <strong>3 de 3</strong> ganas la medalla de la
+            categoría de la <strong>tercera</strong> pregunta y la racha vuelve a 0. Si ya tenías esa medalla,
+            <strong>ganas una de las que te faltan</strong>: tres aciertos seguidos nunca se pierden.
+          </p>
+        </section>
+        <section>
+          <h3>🏅 Casillas de medalla directa</h3>
+          <p>
+            Hay una por categoría (con borde dorado). Al caer en ella respondes una pregunta especial de esa categoría:
+            si aciertas, ganas esa medalla al instante aunque tu racha sea menor que 3; si fallas, no la ganas.
+            <strong>Esta pregunta no suma ni reinicia tu racha.</strong> Si ya tienes esa medalla, se te avisa que no
+            puedes duplicarla y no hay pregunta.
+          </p>
+        </section>
+        <section>
+          <h3>🏁 Recta final y victoria</h3>
+          <p>
+            Con las 4 medallas ya no respondes preguntas: golpeas el bloque y avanzas hacia <strong>Pueblo Paleta</strong>
+            (Diglett, Dodrio, Monte Moon e Islas Espuma siguen funcionando). Al cruzarlo o caer en él, tu ficha se detiene
+            ahí y enfrentas el <strong>desafío de la Liga Pokémon</strong>: una pregunta sobre el Alto Mando, campeones,
+            líderes de gimnasio, legendarios y míticos. Si aciertas, ¡eres Campeón! Si fallas, en tu próximo turno
+            respondes otro desafío sin moverte.
+          </p>
+        </section>
+        <section>
+          <h3>✨ Casillas especiales</h3>
+          <ul class="legend legend-rules" id="rulesLegend"></ul>
+        </section>
+        <p class="rules-note">La partida se guarda sola en este navegador. Al volver podrás continuarla.</p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-primary" id="btnRulesClose">Entendido</button>
+        </div>
+      </article>
+    </div>
+
+    <div class="overlay victory-overlay" id="victoryDialog" hidden>
+      <div class="confetti" id="confetti" aria-hidden="true"></div>
+      <div class="dialog card victory-card" role="dialog" aria-modal="true" aria-labelledby="victoryTitle">
+        <p class="victory-kicker">🏆 ¡Tenemos campeón! 🏆</p>
+        <div class="victory-token" id="victoryToken"></div>
+        <h2 id="victoryTitle"></h2>
+        <p>Reunió las 4 medallas y venció el desafío de la Liga Pokémon.</p>
+        <div class="victory-medals" id="victoryMedals"></div>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-primary" id="btnPlayAgain">↻ Jugar de nuevo</button>
+          <button type="button" class="btn" id="btnBackSetup">⚙ Volver a configuración</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel del modo tester (bots) -->
+    <aside class="tester-panel card" id="testerPanel" aria-label="Modo tester" hidden>
+      <header class="tester-head">
+        <strong>🤖 Modo tester</strong>
+        <span class="tester-status" id="testerStatus"></span>
+        <button type="button" class="tester-close" id="btnTesterClose" aria-label="Apagar el modo tester">✕</button>
+      </header>
+      <ul class="tester-stats" id="testerStats"></ul>
+      <div class="tester-controls">
+        <button type="button" class="btn" id="btnTesterPause">⏸ Pausar</button>
+        <button type="button" class="btn" id="btnTesterStep" title="Con la pausa puesta, hace una sola acción">⏭ Un paso</button>
+        <button type="button" class="btn btn-primary" id="btnTesterRun" hidden>▶ Que jueguen los bots</button>
+      </div>
+      <div class="tester-options">
+        <label>
+          Aciertos
+          <select id="testerAccuracy">
+            <option value="0.5">50 %</option>
+            <option value="0.7" selected>70 %</option>
+            <option value="0.9">90 %</option>
+            <option value="1">100 %</option>
+          </select>
+        </label>
+        <label>
+          Ritmo
+          <select id="testerSpeed">
+            <option value="normal" selected>Normal</option>
+            <option value="rapido">Rápido</option>
+            <option value="turbo">Turbo (sin animaciones)</option>
+          </select>
+        </label>
+      </div>
+    </aside>
+
+    <div class="rec-toolbar" id="recToolbar" hidden>
+      <button type="button" class="btn" id="btnChroma" aria-pressed="false">🟩 Fondo verde</button>
+      <button type="button" class="btn" id="btnRecExit">✕ Salir de la vista de grabación</button>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <!--
+      Scripts clásicos (no módulos) para que el juego local funcione también
+      abriendo el archivo directamente. Orden: librería de conexión → datos →
+      configuración → arte → utilidades → sonido → configuración de jugadores →
+      tablero → juego → sala en línea → vista de grabación.
+    -->
+    <script src="vendor/peerjs.min.js"></script>
+    <!-- Preguntas: base escrita a mano + bancos generados desde datos de PokeAPI (tools/question-gen/) -->
+    <script src="questions.js?v=20"></script>
+    <script src="questions-tipos.js?v=20"></script>
+    <script src="questions-pokedex.js?v=20"></script>
+    <script src="questions-habilidades.js?v=20"></script>
+    <script src="questions-cambalache.js?v=20"></script>
+    <script src="config.js?v=20"></script>
+    <script src="pokedata.js?v=20"></script>
+    <script src="art.js?v=20"></script>
+    <script src="dom.js?v=20"></script>
+    <script src="sound.js?v=20"></script>
+    <script src="setup.js?v=20"></script>
+    <script src="board.js?v=20"></script>
+    <script src="script.js?v=20"></script>
+    <script src="net-protocol.js?v=20"></script>
+    <script src="net-host.js?v=20"></script>
+    <script src="recording.js?v=20"></script>
+    <script src="tester.js?v=20"></script>
+
+    <!--
+      Tablero 3D: módulo ES (necesita servirse por http/https; abierto como archivo queda el 2D).
+      El "?v=20" de los archivos propios obliga a descargar la versión nueva al publicar
+      cambios: hay que subir ese número (aquí, en los <script> y en control.html) en cada versión.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three/three.module.js",
+          "three/addons/": "./vendor/three/addons/",
+          "./view3d/tween.js": "./view3d/tween.js?v=20",
+          "./view3d/textures.js": "./view3d/textures.js?v=20",
+          "./view3d/scene.js": "./view3d/scene.js?v=20",
+          "./view3d/pieces.js": "./view3d/pieces.js?v=20",
+          "./view3d/fx.js": "./view3d/fx.js?v=20"
+        }
+      }
+    </script>
+    <script type="module" src="view3d/view3d.js?v=20"></script>
+  </body>
+</html>
