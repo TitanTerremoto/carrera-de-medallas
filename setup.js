@@ -44,7 +44,7 @@
     list.appendChild(
       el('li', { class: 'category-card league-card', style: { '--cat': league.color } }, [
         el('span', { class: 'category-card-icon league-icon' }, [categoryIcon('liga')]),
-        el('div', {}, [el('strong', { text: '🏆 Liga Pokémon' }), el('small', { class: 'badge-name', text: 'La meta final' }), el('p', { text: 'Con las 4 medallas, vuelve a Pueblo Paleta y vence el desafío del Alto Mando.' })]),
+        el('div', {}, [el('strong', { text: '🏆 Liga Pokémon' }), el('small', { class: 'badge-name', text: 'La meta final' }), el('p', { text: 'Al juntar las 4 medallas, Lance y su Dragonite te hacen la pregunta final. ¡Acierta y eres Campeón!' })]),
       ]),
     );
   }

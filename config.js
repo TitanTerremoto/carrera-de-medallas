@@ -59,7 +59,7 @@
   // pregunta normal sea «por la medalla».
   const HITS_FOR_MEDAL = 2;
   const ANSWER_SECONDS = 20; // tiempo para responder cada pregunta
-  // Con las 4 medallas se corre a Pueblo Paleta para el desafío de la Liga Pokémon.
+  // Con las 4 medallas, Lance hace al instante la pregunta del desafío de la Liga Pokémon.
   const MEDALS_TO_WIN = 4;
   const DICE_MAX = 10; // el bloque de dado sale entre 1 y 10
   const SAVE_KEY = 'carreraMedallas.save.v1';
@@ -95,7 +95,7 @@
   /** Texto corto que describe el efecto de una casilla. */
   function squareSubtitle(sq) {
     switch (sq.type) {
-      case 'start': return 'Salida';
+      case 'start': return 'Mew regala medalla';
       case 'skip': return 'Pierdes 1 turno';
       case 'wild': return 'Eliges la categoría';
       case 'rocket': return 'Robas una medalla';

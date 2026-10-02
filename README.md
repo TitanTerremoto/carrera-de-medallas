@@ -81,7 +81,7 @@ Bots que juegan solos, para ver cómo avanza una partida sin jugadores:
   celular conectado se respetan.
 - Durante una partida: «🤖 Modo tester» en la barra de arriba enciende o
   apaga los bots sobre la partida actual.
-- Directo: `index.html?tester=1`.
+- Directo: `index.html?tester=1` (arranca en pausa, listo para «Probar casilla»; «▶ Seguir» deja jugar a los bots).
 
 **Probar casilla:** en el panel, elige cualquiera de las 36 casillas y toca
 «🧪 Ir». El jugador en turno salta a la casilla anterior y avanza 1, así se ve
@@ -90,10 +90,46 @@ empezar un turno; si los bots están jugando, se pausan. Para el Team Rocket, si
 nadie tiene nada que robar, a un rival se le da una medalla de prueba (queda
 anotado en el registro con 🧪).
 
-**Animación del Team Rocket (3D):** baja del cielo un globo con la «R» y Meowth
-en la canasta. Si la víctima defiende su medalla, el globo sale disparado
-girando y desaparece con un destello; si no, la medalla vuela de la víctima al
-ladrón y el globo se va. Con la cámara «siempre arriba» no hay plano especial.
+**Escenas de las casillas especiales (3D):** al caer, la cámara va directo a
+una escena con un personaje de Cobblemon y la caja de diálogo, sin ventanas:
+
+- **Medalla directa:** el líder habla con su Pokémon (Erika y Tangela, Brock y
+  Onix, Lt. Surge y Raichu, Koga y Venomoth) y después aparece la pregunta.
+- **Pueblo Paleta:** Mew baja flotando y regala una medalla.
+- **Desafío de la Liga:** Lance llega con Dragonite y hace la pregunta final.
+- **Islas Espuma:** Tentacool arrastra la ficha 4 casillas hacia atrás.
+
+- **Centro Pokémon:** entra Chansey caminando y pregunta la categoría con
+  opciones en la caja (las bloqueadas por la regla de la medalla aparecen
+  grises); desde el celular se elige igual que antes.
+- **Monte Moon:** tres Zubat dan vueltas en picada alrededor de la ficha, que
+  gira mareada; el narrador avisa que pierde su próximo turno.
+- **Dodrio veloz:** llega Dodrio corriendo, habla y corre al lado de la ficha
+  mientras avanza.
+- **Diglett:** asoma del suelo con una nube de tierra, la ficha salta del
+  susto, retrocede y Diglett se vuelve a meter.
+
+`view3d/sceneDirector.js` dirige estas escenas; `view3d/visitors.js` anima a
+los personajes y `view3d/sceneShot.js` elige dónde se paran y el plano (sin
+pisar fichas y con el personaje y la ficha a la vista).
+
+**Escena del Team Rocket:** en vez de ventanas, es una escena con diálogo
+estilo juego de fiesta. Baja el globo aerostático del Team Rocket, en bloques
+estilo Minecraft como los Pokémon de Cobblemon (lona gris en gajos con la «R»
+roja de borde blanco; `view3d/rocket.js`, ~1.400 bloques en un solo
+InstancedMesh). El globo se arma a partir de las medidas de Meowth: la canasta
+lo rodea con medio bloque de aire y la lona empieza por encima de su cabeza,
+así nunca lo tapa. `view3d/rocketShot.js` elige dónde baja (sin caer sobre
+ninguna ficha, dentro del tablero) y desde qué ángulo mirar, comprobando que no
+haya lona, canasta ni fichas entre la cámara y Meowth o la ficha. Junto a la ficha, la cámara los encuadra lado a lado, y Meowth
+(modelo de Cobblemon, `models/decor/meowth.glb`) habla en una caja de diálogo
+abajo del tablero: el texto aparece letra por letra, con «bips», mientras
+mueve la boca. Se avanza tocando la caja (o con Enter/Espacio) y la víctima se
+elige con las opciones dentro de la misma caja (desde el celular, si el
+jugador está conectado). La pregunta de defensa sigue siendo una ventana. Si
+la víctima falla, la medalla vuela al ladrón mientras Meowth festeja; si
+acierta, el globo sale disparado girando y aparece «¡El Team Rocket sale
+volando otra vez!». La caja está en `talk.js` y sirve para otros personajes.
 
 El panel (abajo a la izquierda) muestra turnos, aciertos, quién va ganando y
 de quién es el turno. Permite pausar, avanzar **un paso** por vez, elegir el
@@ -188,6 +224,11 @@ Los párpados de estos modelos tapan los ojos en reposo, así que el juego los
 oculta y hace su propio parpadeo cada pocos segundos; también oculta las
 expresiones alternativas ("emote") de Pikachu.
 
+**Cámara.** Los cambios de plano son de tipo grúa: la cámara gira alrededor
+de lo que mira (inclinación y giro), acerca o aleja con zoom parejo y frena
+suave; desde la vista cenital no da vueltas. Si llega un movimiento nuevo, el
+anterior se abandona en vez de pelearse con él.
+
 El juego ajusta el tamaño según la pose de reposo y apoya el modelo sobre
 la base. `rotationY` (en grados) corrige hacia dónde mira: los de Cobblemon
 usan 180. Si un modelo falta o no carga, se usa la figura de juguete incluida
@@ -198,6 +239,8 @@ usan 180. Si un modelo falta o no carga, se usa la figura de juguete incluida
 | Archivo | Responsabilidad |
 | --- | --- |
 | `index.html` | Pantalla principal: configuración, tablero, ventanas y «Cómo jugar». |
+| `talk.js` | Caja de diálogo de personajes (texto letra por letra, opciones). |
+| `view3d/sceneDirector.js` · `visitors.js` · `sceneShot.js` · `rocket.js` · `rocketShot.js` | Escenas de las casillas especiales: personajes, globo, cámara y choques. |
 | `control.html` · `control.js` · `control.css` | Control del jugador (celular u otra pestaña). |
 | `script.js` | Reglas, turnos, preguntas, aciertos, medallas, guardado, victoria y acciones remotas. |
 | `board.js` | Tablero 2D, dado del panel y leyenda. |
@@ -265,13 +308,14 @@ Suma un objeto a la categoría que corresponda en `questions.js`:
 
 ## Reglas
 
-- **Objetivo:** conseguir las **4 medallas de gimnasio** (Tipos, Pokédex, Habilidades y Cambalache), volver a **Pueblo Paleta** y vencer el **desafío de la Liga Pokémon**.
+- **Objetivo:** conseguir las **4 medallas de gimnasio** (Tipos, Pokédex, Habilidades y Cambalache) y vencer el **desafío de la Liga Pokémon**.
 - **Aciertos:** son de cada jugador, se conservan entre turnos y **un error no los borra**. Con 2 aciertos, la próxima pregunta normal es **por la medalla** de su categoría. Acierte o falle esa pregunta, los aciertos vuelven a 0. Si con 2 aciertos cae en una categoría cuya medalla ya tiene, **pierde el turno** (sin pregunta) y conserva sus aciertos; en el Centro Pokémon solo puede elegir categorías cuya medalla le falta.
 - **Medalla directa:** si aciertas, ganas esa medalla. Los aciertos no suben ni se borran. Si ya la tienes, se avisa y no hay pregunta.
-- **Recta final:** con las 4 medallas no hay más preguntas. Solo se golpea el bloque y se avanza (Diglett, Dodrio, Monte Moon e Islas Espuma siguen aplicando). Al cruzar o pisar Pueblo Paleta la ficha se detiene ahí y enfrenta el **desafío de la Liga Pokémon**: una pregunta del banco `liga` (Alto Mando, campeones, líderes, legendarios y míticos). Si falla, en su próximo turno responde otro sin moverse.
+- **Mew en Pueblo Paleta:** cada vez que la ficha cruza o cae en la salida avanzando (dado o Dodrio), Mew le regala una medalla al azar entre las que le faltan. Retroceder (Diglett, Islas Espuma) no cuenta. El regalo se guarda en el momento: recargar no lo repite.
+- **Desafío de la Liga:** apenas un jugador junta las 4 medallas (pregunta, Team Rocket o Mew), llega **Lance** con Dragonite y hace la pregunta final del banco `liga` (Alto Mando, campeones, líderes, legendarios y míticos). Si acierta, gana. Si falla, al empezar su próximo turno Lance le pregunta otra vez, sin tirar el dado. Si el Team Rocket le roba una medalla, vuelve a jugar normal.
 - **Tiempo:** hay 20 segundos para responder cada pregunta (también el desafío final). Si se acaba, cuenta como respuesta incorrecta. El reloj lo lleva la pantalla principal; el celular muestra la misma cuenta regresiva.
 - **Centro Pokémon:** eliges la categoría y la pregunta cuenta como una normal.
-- **Team Rocket (2 casillas):** eliges a un rival que tenga alguna medalla que tú no tengas; sale al azar una de esas. El rival la defiende con una pregunta de esa categoría (20 s, responde desde su dispositivo): si acierta la conserva; si falla, pasa a ser tuya. No toca los aciertos. Si nadie tiene nada para robarte, no pasa nada. Con 4 medallas ya no robas, y perder una medalla saca a la víctima de la recta final.
+- **Team Rocket (2 casillas):** eliges a un rival que tenga alguna medalla que tú no tengas; sale al azar una de esas. El rival la defiende con una pregunta de esa categoría (20 s, responde desde su dispositivo): si acierta la conserva; si falla, pasa a ser tuya. No toca los aciertos. Si nadie tiene nada para robarte, no pasa nada. Si le robas la 4.ª medalla a alguien, Lance llega al instante.
 - **Avance/retroceso:** después de moverte se aplica la nueva casilla (como máximo 3 movimientos encadenados por turno).
 - **Monte Moon:** pierdes tu próximo turno.
 - **Guardado:** el turno en curso también se guarda. Si se recarga la pantalla principal, se retoma el mismo evento: no se puede volver a tirar ni cambiar la pregunta.

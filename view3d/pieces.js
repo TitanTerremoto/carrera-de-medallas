@@ -181,9 +181,14 @@ export class Piece {
     this.root.add(base, rim);
     this.body.position.y = 0.06;
 
-    (BUILD[creature] || BUILD.pikachu)(this.model, this);
+    // Mientras carga el modelo de Cobblemon se ve solo la base; la figura de
+    // juguete aparece únicamente si el modelo no se pudo cargar.
     this.setShadows(this.root);
-    loadModel(creature).then((m) => m && this.useModel(m));
+    loadModel(creature).then((m) => {
+      if (m) return this.useModel(m);
+      (BUILD[creature] || BUILD.pikachu)(this.model, this);
+      this.setShadows(this.model);
+    });
   }
 
   setShadows(obj) {

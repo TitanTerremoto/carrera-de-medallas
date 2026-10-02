@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pokémon: Carrera de Medallas</title>
     <meta name="description" content="Juego de mesa de preguntas para 4 jugadores, en una pantalla o desde los celulares." />
-    <link rel="stylesheet" href="styles.css?v=33" />
+    <link rel="stylesheet" href="styles.css?v=52" />
   </head>
   <body>
     <header class="topbar">
@@ -32,8 +32,8 @@
           <h2 id="setupTitle">¡Prepara a tus cuatro Entrenadores Pokémon!</h2>
           <p>
             Recorre Kanto, responde preguntas y consigue las <strong>4 medallas de gimnasio</strong>.
-            Junta <strong>2 aciertos</strong> y la tercera pregunta es por una medalla. Con las 4, vuelve a <strong>Pueblo Paleta</strong>
-            y vence el <strong>desafío de la Liga Pokémon</strong>: ¡el primero en lograrlo es Campeón!
+            Junta <strong>2 aciertos</strong> y la tercera pregunta es por una medalla. Cada vez que pasas por <strong>Pueblo Paleta</strong>,
+            Mew te regala una. Con las 4, Lance te hace el <strong>desafío de la Liga Pokémon</strong>: ¡el primero en vencerlo es Campeón!
           </p>
           <ul class="category-cards" id="categoryCards"></ul>
         </div>
@@ -69,6 +69,17 @@
 
           <!-- Área de juego: tablero + ventanas de pregunta/eventos (nunca tapan las cámaras) -->
           <div class="play-area" id="playArea">
+            <!-- Caja de diálogo de personajes (Meowth…): abajo del tablero, sin tapar la escena -->
+            <div class="talk-box" id="talkBox" role="dialog" aria-live="polite" hidden>
+              <div class="talk-portrait" id="talkPortrait"></div>
+              <div class="talk-body">
+                <span class="talk-name" id="talkName"></span>
+                <p class="talk-text" id="talkText"></p>
+                <div class="talk-choices" id="talkChoices" hidden></div>
+                <p class="remote-wait" hidden></p>
+              </div>
+              <span class="talk-next" aria-hidden="true">▼</span>
+            </div>
           <div class="board-wrap">
             <!-- Tablero 3D (view3d/). Si el navegador no puede mostrarlo, queda el 2D de abajo. -->
             <div class="stage3d" id="stage3d">
@@ -198,24 +209,6 @@
       </div>
     </div>
 
-    <div class="overlay" id="chooseDialog" hidden>
-      <div class="dialog card" role="dialog" aria-modal="true" aria-labelledby="chooseTitle">
-        <h2 id="chooseTitle">¡Centro Pokémon!</h2>
-        <p>Elige la categoría de tu pregunta. Cuenta como una pregunta normal (suma un acierto o es por la medalla).</p>
-        <div class="choose-grid" id="chooseGrid"></div>
-        <p class="remote-wait" hidden></p>
-      </div>
-    </div>
-
-    <div class="overlay" id="rocketDialog" hidden>
-      <div class="dialog card rocket-card" role="dialog" aria-modal="true" aria-labelledby="rocketTitle">
-        <div class="info-icon" id="rocketIcon"></div>
-        <h2 id="rocketTitle">¡Team Rocket!</h2>
-        <p id="rocketText"></p>
-        <div class="rocket-grid" id="rocketGrid"></div>
-        <p class="remote-wait" hidden></p>
-      </div>
-    </div>
 
     <div class="overlay" id="medalDialog" hidden>
       <div class="dialog card medal-card" role="dialog" aria-modal="true" aria-labelledby="medalTitle">
@@ -247,8 +240,7 @@
           <h3>🎯 Objetivo</h3>
           <p>
             Juegan 4 entrenadores por turnos. Consigue las <strong>4 medallas de gimnasio</strong> (Tipos, Pokédex,
-            Habilidades y Cambalache), vuelve a <strong>Pueblo Paleta</strong> y vence el <strong>desafío de la Liga
-            Pokémon</strong> para ser Campeón.
+            Habilidades y Cambalache) y vence el <strong>desafío de la Liga Pokémon</strong> para ser Campeón.
           </p>
         </section>
         <section>
@@ -293,17 +285,24 @@
             Hay 2 casillas del Team Rocket. Si caes en una, eliges a un rival y le robas una medalla que tú no tengas
             (sale al azar entre las posibles). El rival la defiende con una pregunta de esa categoría: si acierta, la
             conserva y el Team Rocket sale volando; si falla o se le acaba el tiempo, la medalla es tuya. Si nadie tiene
-            algo que robarte… no pasa nada. Con las 4 medallas ya no robas: corres a Pueblo Paleta.
+            algo que robarte… no pasa nada.
           </p>
         </section>
         <section>
-          <h3>🏁 Recta final y victoria</h3>
+          <h3>✨ Mew en Pueblo Paleta</h3>
           <p>
-            Con las 4 medallas ya no respondes preguntas: golpeas el bloque y avanzas hacia <strong>Pueblo Paleta</strong>
-            (Diglett, Dodrio, Monte Moon e Islas Espuma siguen funcionando). Al cruzarlo o caer en él, tu ficha se detiene
-            ahí y enfrentas el <strong>desafío de la Liga Pokémon</strong>: una pregunta sobre el Alto Mando, campeones,
-            líderes de gimnasio, legendarios y míticos. Si aciertas, ¡eres Campeón! Si fallas, en tu próximo turno
-            respondes otro desafío sin moverte.
+            Cada vez que cruzas o caes en <strong>Pueblo Paleta</strong> avanzando (con el dado o con Dodrio), Mew te
+            regala una medalla al azar entre las que te faltan. Retroceder (Diglett, Islas Espuma) no cuenta.
+          </p>
+        </section>
+        <section>
+          <h3>🏆 Desafío de la Liga y victoria</h3>
+          <p>
+            Apenas juntas las <strong>4 medallas</strong> (con una pregunta, el Team Rocket o Mew), llega
+            <strong>Lance</strong> con su Dragonite y te hace el <strong>desafío de la Liga Pokémon</strong>: una pregunta
+            sobre el Alto Mando, campeones, líderes de gimnasio, legendarios y míticos. Si aciertas, ¡eres Campeón! Si
+            fallas, en tu próximo turno Lance te pregunta otra vez apenas empieza, sin tirar el dado. Si el Team Rocket
+            te roba una medalla, vuelves a jugar normal hasta recuperar las 4.
           </p>
         </section>
         <section>
@@ -388,27 +387,28 @@
     -->
     <script src="vendor/peerjs.min.js"></script>
     <!-- Preguntas: base escrita a mano + bancos generados desde datos de PokeAPI (tools/question-gen/) -->
-    <script src="questions.js?v=33"></script>
-    <script src="questions-tipos.js?v=33"></script>
-    <script src="questions-pokedex.js?v=33"></script>
-    <script src="questions-habilidades.js?v=33"></script>
-    <script src="questions-cambalache.js?v=33"></script>
-    <script src="config.js?v=33"></script>
-    <script src="pokedata.js?v=33"></script>
-    <script src="art.js?v=33"></script>
-    <script src="dom.js?v=33"></script>
-    <script src="sound.js?v=33"></script>
-    <script src="setup.js?v=33"></script>
-    <script src="board.js?v=33"></script>
-    <script src="script.js?v=33"></script>
-    <script src="net-protocol.js?v=33"></script>
-    <script src="net-host.js?v=33"></script>
-    <script src="recording.js?v=33"></script>
-    <script src="tester.js?v=33"></script>
+    <script src="questions.js?v=52"></script>
+    <script src="questions-tipos.js?v=52"></script>
+    <script src="questions-pokedex.js?v=52"></script>
+    <script src="questions-habilidades.js?v=52"></script>
+    <script src="questions-cambalache.js?v=52"></script>
+    <script src="config.js?v=52"></script>
+    <script src="pokedata.js?v=52"></script>
+    <script src="art.js?v=52"></script>
+    <script src="dom.js?v=52"></script>
+    <script src="sound.js?v=52"></script>
+    <script src="setup.js?v=52"></script>
+    <script src="board.js?v=52"></script>
+    <script src="talk.js?v=52"></script>
+    <script src="script.js?v=52"></script>
+    <script src="net-protocol.js?v=52"></script>
+    <script src="net-host.js?v=52"></script>
+    <script src="recording.js?v=52"></script>
+    <script src="tester.js?v=52"></script>
 
     <!--
       Tablero 3D: módulo ES (necesita servirse por http/https; abierto como archivo queda el 2D).
-      El "?v=33" de los archivos propios obliga a descargar la versión nueva al publicar
+      El "?v=52" de los archivos propios obliga a descargar la versión nueva al publicar
       cambios: hay que subir ese número (aquí, en los <script> y en control.html) en cada versión.
     -->
     <script type="importmap">
@@ -416,17 +416,21 @@
         "imports": {
           "three": "./vendor/three/three.module.js",
           "three/addons/": "./vendor/three/addons/",
-          "./view3d/tween.js": "./view3d/tween.js?v=33",
-          "./view3d/textures.js": "./view3d/textures.js?v=33",
-          "./view3d/scene.js": "./view3d/scene.js?v=33",
-          "./view3d/pieces.js": "./view3d/pieces.js?v=33",
-          "./view3d/fx.js": "./view3d/fx.js?v=33",
-          "./view3d/rocket.js": "./view3d/rocket.js?v=33",
-          "./view3d/scenery.js": "./view3d/scenery.js?v=33",
-          "./view3d/townmodels.js": "./view3d/townmodels.js?v=33"
+          "./view3d/tween.js": "./view3d/tween.js?v=52",
+          "./view3d/textures.js": "./view3d/textures.js?v=52",
+          "./view3d/scene.js": "./view3d/scene.js?v=52",
+          "./view3d/pieces.js": "./view3d/pieces.js?v=52",
+          "./view3d/fx.js": "./view3d/fx.js?v=52",
+          "./view3d/rocket.js": "./view3d/rocket.js?v=52",
+          "./view3d/rocketShot.js": "./view3d/rocketShot.js?v=52",
+          "./view3d/sceneShot.js": "./view3d/sceneShot.js?v=52",
+          "./view3d/sceneDirector.js": "./view3d/sceneDirector.js?v=52",
+          "./view3d/visitors.js": "./view3d/visitors.js?v=52",
+          "./view3d/scenery.js": "./view3d/scenery.js?v=52",
+          "./view3d/townmodels.js": "./view3d/townmodels.js?v=52"
         }
       }
     </script>
-    <script type="module" src="view3d/view3d.js?v=33"></script>
+    <script type="module" src="view3d/view3d.js?v=52"></script>
   </body>
 </html>

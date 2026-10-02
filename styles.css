@@ -1264,30 +1264,184 @@ main {
   transition: transform 0.12s;
 }
 
-/* Team Rocket: elegir a qué rival robarle. */
-.rocket-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
+/* ── Caja de diálogo de personajes (estilo juego de fiesta) ── */
+.talk-box {
+  position: absolute;
+  left: 3%;
+  right: 3%;
+  bottom: 3%;
+  z-index: 26;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px 14px;
+  border-radius: 20px;
+  background: #fffdf7;
+  border: 4px solid #1f2933;
+  box-shadow: 0 6px 0 #1f2933, 0 14px 28px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  user-select: none;
 }
 
-.rocket-btn {
+.talk-box[hidden],
+.talk-choices[hidden],
+.talk-portrait[hidden],
+.talk-name[hidden] {
+  display: none;
+}
+
+.talk-box.talk-pop {
+  animation: talk-pop 0.28s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@keyframes talk-pop {
+  from { transform: translateY(18px) scale(0.92); opacity: 0; }
+}
+
+.talk-portrait {
+  flex: none;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 4px solid #c92a2a;
+  background: radial-gradient(circle at 50% 35%, #fff, #ffe3e3);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.talk-art {
+  width: 112%;
+  height: 112%;
+  object-fit: contain;
+  transform: translateY(8%);
+}
+
+.talk-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+/* Cartel con el nombre, montado sobre el borde de la caja */
+.talk-name {
+  justify-self: start;
+  margin-top: -32px;
+  padding: 3px 14px;
+  border-radius: 999px;
+  background: #c92a2a;
+  border: 3px solid #1f2933;
+  color: #fff;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+
+.talk-text {
+  margin: 0;
+  min-height: 2.6em;
+  font-size: 1.18rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #1f2933;
+}
+
+.talk-next {
+  position: absolute;
+  right: 16px;
+  bottom: 8px;
+  color: #c92a2a;
+  opacity: 0;
+}
+
+.talk-done:not(:has(.talk-choices:not([hidden]))) .talk-next {
+  opacity: 1;
+  animation: talk-next 0.7s ease-in-out infinite;
+}
+
+@keyframes talk-next {
+  50% { transform: translateY(4px); }
+}
+
+/* Opciones dentro de la caja (a quién robarle, etc.) */
+.talk-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.talk-choice {
   font: inherit;
   font-weight: 800;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 12px 8px;
-  border-radius: 14px;
-  border: 3px solid var(--pc);
-  background: color-mix(in srgb, var(--pc) 10%, #fff);
-  color: var(--pc);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  border: 3px solid #1f2933;
+  background: #fff;
+  color: #1f2933;
   cursor: pointer;
-  transition: transform 0.12s;
+  box-shadow: 0 3px 0 #1f2933;
+  transition: transform 0.1s, box-shadow 0.1s;
 }
 
-.rocket-btn:hover {
+.talk-choice:hover:not(:disabled),
+.talk-choice:focus-visible {
   transform: translateY(-2px);
+  box-shadow: 0 5px 0 #1f2933;
+  background: #fff3bf;
+}
+
+.talk-choice:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #1f2933;
+}
+
+.talk-choice:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.talk-choice > svg {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+.talk-choice-player {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.talk-choice-player .token {
+  --size: 30px;
+}
+
+/* Mientras habla un personaje, el panel del turno no asoma detrás de la caja. */
+.play-area:has(.talk-box:not([hidden])) .stage-hud,
+.cam-scene .stage-hud {
+  visibility: hidden;
+}
+
+/* Narrador: sin retrato, texto grande y centrado */
+.talk-box.talk-narrator {
+  justify-content: center;
+  text-align: center;
+  background: #1f2933;
+  border-color: #f8c630;
+}
+
+.talk-narrator .talk-text {
+  color: #ffe066;
+  font-size: 1.4rem;
+  min-height: 0;
+}
+
+@media (max-width: 640px) {
+  .talk-portrait { width: 56px; height: 56px; }
+  .talk-text { font-size: 1rem; }
 }
 
 .rocket-medals {
@@ -1297,8 +1451,8 @@ main {
 
 .rocket-medals img,
 .rocket-medals svg {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
 }
 
 .choose-btn:hover:not(:disabled) {
@@ -2488,17 +2642,22 @@ body.rec-mode .play-area {
   box-shadow: 0 0 0 4px #fff, 0 0 0 8px #1f2933, 0 24px 56px rgba(0, 0, 0, 0.5);
 }
 
+.overlay.in-board {
+  transition: opacity 0.45s ease;
+}
+
 .overlay.in-board.show .dialog {
-  animation: popup-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.35) both;
+  animation: popup-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .overlay.in-board .confetti {
   position: absolute;
 }
 
+/* Entrada suave: sube un poco y se aclara, con un leve rebote al final. */
 @keyframes popup-in {
-  0% { opacity: 0; transform: scale(0.35) translateY(25%) rotate(-5deg); }
-  60% { opacity: 1; transform: scale(1.04) rotate(1deg); }
+  0% { opacity: 0; transform: translateY(28px) scale(0.94); }
+  70% { opacity: 1; transform: translateY(-2px) scale(1.005); }
   100% { opacity: 1; transform: none; }
 }
 

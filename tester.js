@@ -126,9 +126,10 @@
   }
 
   // ── Encendido / apagado ──
-  function start() {
+  /** Enciende los bots; con `paused` quedan en pausa (para probar casillas a mano). */
+  function start(paused = false) {
     tester.on = true;
-    tester.paused = false;
+    tester.paused = paused;
     tester.stepOnce = false;
     lastActedKey = null;
     loopId++;
@@ -152,7 +153,7 @@
   }
 
   /** Completa los asientos libres con bots y empieza una partida de prueba. */
-  function startBotGame() {
+  function startBotGame(paused = false) {
     const seats = Setup.seats();
     const used = new Set(seats.filter((s) => s.creature).map((s) => s.creature));
     const free = CREATURES.map((c) => c.id).filter((id) => !used.has(id));
@@ -165,7 +166,7 @@
     Setup.load(players);
     tester.stats = { turns: 0, right: 0, wrong: 0 };
     $('setupForm').requestSubmit();
-    if (Game.publicView()) start();
+    if (Game.publicView()) start(paused);
     else toast('Revisa los jugadores: hay datos repetidos o incompletos.');
   }
 
@@ -182,14 +183,14 @@
     let status = tester.paused ? '⏸ En pausa' : '▶ Jugando solo';
     if (!tester.on) status = v.phase === 'over' ? '🏁 Partida terminada' : '⏹ Detenido';
     const leader = v.players
-      .map((p) => ({ name: p.name, m: CAT_KEYS.filter((c) => p.medals[c]).length + (p.atFinal ? 0.5 : 0) }))
+      .map((p) => ({ name: p.name, m: CAT_KEYS.filter((c) => p.medals[c]).length }))
       .sort((a, b) => b.m - a.m)[0];
 
     $('testerStatus').textContent = status;
     $('testerStats').replaceChildren(
       el('li', { text: `Turnos: ${s.turns}` }),
       el('li', { text: `Aciertos: ${s.right}/${answered}${answered ? ` (${Math.round((s.right / answered) * 100)} %)` : ''}` }),
-      el('li', { text: `Va ganando: ${leader.name} (${Math.floor(leader.m)}/${MEDALS_TO_WIN}${leader.m % 1 ? ', en el desafío final' : ''})` }),
+      el('li', { text: `Va ganando: ${leader.name} (${leader.m}/${MEDALS_TO_WIN}${leader.m >= MEDALS_TO_WIN ? ', en el desafío de la Liga' : ''})` }),
       el('li', { text: `Turno de: ${v.players[v.current].name}${Game.isRemote(v.current) ? ' 📱' : ''}` }),
     );
     $('btnTesterPause').textContent = tester.paused ? '▶ Seguir' : '⏸ Pausar';
@@ -201,7 +202,7 @@
   }
 
   function init() {
-    $('btnBotGame').addEventListener('click', startBotGame);
+    $('btnBotGame').addEventListener('click', () => startBotGame());
     $('btnTester').addEventListener('click', () => {
       if (!Game.publicView()) return startBotGame();
       if (tester.on) stop('Modo tester apagado: la partida sigue a mano.');
@@ -215,7 +216,7 @@
       tester.stepOnce = true;
       lastActedKey = null;
     });
-    $('btnTesterRun').addEventListener('click', start);
+    $('btnTesterRun').addEventListener('click', () => start());
     $('testerSquare').replaceChildren(...BOARD_LAYOUT.map((sq, i) => el('option', { text: `${i} · ${squareTitle(sq)}`, attrs: { value: String(i) } })));
     $('btnTesterSquare').addEventListener('click', () => {
       // Los bots quedan en pausa para poder ver la casilla con calma.
@@ -235,8 +236,9 @@
     });
     Game.onUpdate(render);
     render();
-    // index.html?tester=1 arranca directo una partida de prueba.
-    if (new URLSearchParams(window.location.search).get('tester') === '1' && !Game.publicView()) startBotGame();
+    // index.html?tester=1 arranca una partida de prueba en pausa: lista para
+    // «Probar casilla»; «▶ Seguir» deja jugar a los bots.
+    if (new URLSearchParams(window.location.search).get('tester') === '1' && !Game.publicView()) startBotGame(true);
   }
 
   init();

@@ -25,11 +25,12 @@
   const { CATS, CAT_KEYS, QUESTION_KEYS, LEAGUE_KEY, HITS_FOR_MEDAL, ANSWER_SECONDS, MEDALS_TO_WIN, DICE_MAX, SAVE_KEY, BOARD_LAYOUT, BOARD_SIZE, squareTitle } = window.GameConfig;
   const ANSWER_MS = ANSWER_SECONDS * 1000;
   // Ventanas del juego que se muestran dentro del área de juego (no sobre toda la página).
-  const IN_BOARD_DIALOGS = ['questionDialog', 'infoDialog', 'chooseDialog', 'rocketDialog', 'medalDialog', 'victoryDialog'];
+  const IN_BOARD_DIALOGS = ['questionDialog', 'infoDialog', 'medalDialog', 'victoryDialog'];
   const { creatureIcon, categoryIcon, medalIcon, artIcon, pokemonIcon, typeIcons } = window.GameArt;
   const Poke = window.PokeData;
   const Board = window.GameBoard;
   const Sound = window.GameSound;
+  const Talk = window.GameTalk;
 
   const STEP_MS = 260;
   const MAX_CHAIN = 3; // máximo de casillas de movimiento encadenadas en un turno
@@ -90,6 +91,14 @@
     rocketArrive: () => Promise.resolve(),
     rocketLeave: () => Promise.resolve(),
     steal: () => Promise.resolve(),
+    announce() {},
+    visitorArrive: () => Promise.resolve(),
+    visitorLeave: () => Promise.resolve(),
+    medalGift() {},
+    visitorEscort() {},
+    zubatAttack: () => Promise.resolve(),
+    characterTalk() {},
+    characterCry() {},
   };
   let view3d = null;
   const view = () => view3d || view2D;
@@ -221,7 +230,10 @@
       // Partidas de versiones anteriores pueden no tener mazo para algún banco.
       for (const k of QUESTION_KEYS) if (!Array.isArray(s.decks[k])) s.decks[k] = [];
       // Al retomar, la pregunta abierta vuelve a tener el tiempo completo.
-      if (s.pending && s.pending.type === 'question' && !s.pending.answered) s.pending.deadline = Date.now() + ANSWER_MS;
+      if (s.pending && s.pending.type === 'question' && !s.pending.answered) {
+        s.pending.deadline = Date.now() + ANSWER_MS;
+        s.pending.hold = false;
+      }
       // Si el banco cambió y la pregunta pendiente ya no existe, se saca otra.
       if (s.pending && s.pending.type === 'question' && !BANK[s.pending.cat]?.[s.pending.qi]) {
         s.pending = { type: 'move', steps: 0, depth: 0 };
@@ -236,10 +248,11 @@
 
   const cur = () => state.players[state.current];
   const medalCount = (p) => CAT_KEYS.filter((c) => p.medals[c]).length;
-  /** Con 4 medallas el jugador corre a Pueblo Paleta: avanza sin preguntas. */
-  const isRacing = (p) => medalCount(p) >= MEDALS_TO_WIN;
-  /** Ya llegó a Pueblo Paleta: en su turno responde el desafío final. */
-  const atFinal = (p) => isRacing(p) && p.pos === 0;
+  /**
+   * Con las 4 medallas toca el desafío de la Liga: Lance (con Dragonite) hace
+   * la pregunta final al instante; si falla, la repite al empezar su próximo turno.
+   */
+  const hasAllMedals = (p) => medalCount(p) >= MEDALS_TO_WIN;
   const randomOf = (list) => list[Math.floor(Math.random() * list.length)];
   const alive = (id) => id === gameId && state && state.phase !== 'over';
 
@@ -315,14 +328,15 @@
       ),
     );
     const remote = lockedRemote(state.current);
-    const canRoll = state.phase === 'idle' && !busy && !remote;
+    const canRoll = state.phase === 'idle' && !busy && !remote && !hasAllMedals(cur());
     $('btnRoll').disabled = !canRoll;
     let label = '⏳ Resolviendo…';
     if (state.phase === 'over') label = '🏁 Partida terminada';
     else if (state.phase === 'idle' && remote) label = '📱 Golpea desde su dispositivo';
-    else if (canRoll) label = atFinal(cur()) ? '🏆 ¡Desafío de la Liga!' : '👊 ¡Golpear el bloque!';
+    else if (state.phase === 'idle' && hasAllMedals(cur())) label = '🏆 Lance te espera…';
+    else if (canRoll) label = '👊 ¡Golpear el bloque!';
     $('btnRoll').textContent = label;
-    Board.setDiceCycling(state.phase === 'idle' && !busy && !atFinal(cur()));
+    Board.setDiceCycling(state.phase === 'idle' && !busy && !hasAllMedals(cur()));
     applyLocks();
     notify();
   }
@@ -336,7 +350,7 @@
             el('strong', { class: 'player-name', text: p.name }),
             el('span', { class: 'player-meta', text: `${readyForMedal(p) ? '🏅 Por la medalla' : `Aciertos ${p.streak}/${HITS_FOR_MEDAL}`} · ${medalCount(p)}/${MEDALS_TO_WIN} medallas` }),
             p.skipNext ? el('span', { class: 'player-flag', text: 'Pierde el próximo turno' }) : null,
-            isRacing(p) ? el('span', { class: 'player-flag race', text: atFinal(p) ? '🏆 Desafío de la Liga' : '🏁 Rumbo a Pueblo Paleta' }) : null,
+            hasAllMedals(p) ? el('span', { class: 'player-flag race', text: '🏆 Desafío de la Liga' }) : null,
           ]),
           miniMedals(p),
         ]),
@@ -400,7 +414,7 @@
     document.querySelectorAll('#qOptions .q-option').forEach((b) => {
       b.disabled = remote || !pd || pd.type !== 'question' || pd.answered;
     });
-    document.querySelectorAll('#chooseGrid .choose-btn, #rocketGrid .rocket-btn').forEach((b) => {
+    document.querySelectorAll('#talkChoices .talk-choice').forEach((b) => {
       b.disabled = remote || b.dataset.blocked === '1';
     });
     for (const id of ['btnQContinue', 'btnInfoOk', 'btnMedalOk']) $(id).disabled = remote;
@@ -420,7 +434,7 @@
   /** 1) Lanzar el dado. Solo funciona en fase 'idle' y una vez por turno. */
   async function rollDice() {
     if (!state || state.phase !== 'idle' || busy) return;
-    if (atFinal(cur())) return startFinal();
+    if (hasAllMedals(cur())) return startLeague();
     const run = gameId;
     busy = true;
     state.phase = 'busy';
@@ -456,7 +470,7 @@
     if (!state || state.phase !== 'idle' || busy || !Number.isInteger(index) || !BOARD_LAYOUT[index]) return false;
     const p = cur();
     const sq = BOARD_LAYOUT[index];
-    if (sq.type === 'rocket' && !isRacing(p) && !stealOptions(state.current).length) {
+    if (sq.type === 'rocket' && !stealOptions(state.current).length) {
       const cat = CAT_KEYS.find((c) => !p.medals[c]);
       const rival = state.players.find((_, seat) => seat !== state.current);
       if (cat && rival) {
@@ -479,11 +493,71 @@
     return true;
   }
 
-  /** Desafío final en Pueblo Paleta: una pregunta de cualquier categoría. */
-  function startFinal() {
+  /**
+   * Desafío de la Liga: llega Lance con Dragonite y hace la pregunta final.
+   * La pregunta se crea y guarda al empezar (recargar no la pierde); el reloj
+   * corre recién cuando Lance termina de hablar.
+   */
+  async function startLeague() {
+    if (!state || state.phase === 'over') return;
+    const p = cur();
+    const run = gameId;
     state.phase = 'busy';
-    addLog(`🏆 ${cur().name} enfrenta el desafío de la Liga Pokémon.`, state.current);
-    return openQuestion(LEAGUE_KEY, 'final');
+    const held = state.pending;
+    if (!(held && held.type === 'question' && held.mode === 'final' && held.hold)) {
+      addLog(`🏆 ${p.name} enfrenta el desafío de la Liga Pokémon.`, state.current);
+      openQuestion(LEAGUE_KEY, 'final', { hold: true });
+    }
+    const pd = state.pending;
+    renderAll();
+    await view().visitorArrive('dragonite', state.current);
+    if (!alive(run) || state.pending !== pd) return;
+    await characterSays('lance', `¡${p.name}, juntaste las ${MEDALS_TO_WIN} medallas! Soy Lance, Campeón de la Liga Pokémon. Responde bien y el título será tuyo.`);
+    if (!alive(run) || state.pending !== pd) return;
+    Talk.close();
+    releaseQuestion();
+  }
+
+  /** Cierra el turno: con las 4 medallas recién juntadas, Lance llega al instante. */
+  function finishTurn() {
+    if (state && state.phase !== 'over' && hasAllMedals(cur())) return startLeague();
+    return endTurn();
+  }
+
+  /**
+   * Mew en Pueblo Paleta: al cruzar o caer en la salida yendo hacia adelante,
+   * regala una medalla al azar entre las que faltan. Si con ella se juntan las
+   * 4, la ficha se queda ahí y empieza el desafío de la Liga.
+   * Devuelve 'league', 'continue' o false (partida cancelada).
+   */
+  async function mewGift(run, left, depth) {
+    const p = cur();
+    const missing = CAT_KEYS.filter((c) => !p.medals[c]);
+    if (!missing.length) return 'continue';
+    const cat = randomOf(missing);
+    p.medals[cat] = true;
+    // Se guarda ya, con lo que queda del movimiento: recargar no repite el regalo.
+    state.pending = { type: 'move', steps: left, depth };
+    addLog(`✨ Mew le regala a ${p.name} la ${CATS[cat].badgeName} (${CATS[cat].name}).`, state.current);
+    const complete = hasAllMedals(p);
+    if (complete) {
+      addLog(`🏆 ${p.name} tiene las ${MEDALS_TO_WIN} medallas: ¡al desafío de la Liga!`, state.current);
+      openQuestion(LEAGUE_KEY, 'final', { hold: true });
+    }
+    saveGame();
+    renderAll();
+    await view().visitorArrive('mew', state.current);
+    if (!alive(run)) return false;
+    Sound.play('medal');
+    view().medalGift(state.current, cat);
+    const extra = complete ? ` ¡Y ya tienes las ${MEDALS_TO_WIN}! Lance te espera…` : '';
+    await characterSays('mew', `¡Mew, mew! ✨ Por pasar por Pueblo Paleta te regalo la ${CATS[cat].badgeName}.${extra}`);
+    if (!alive(run)) return false;
+    Talk.close();
+    view().visitorLeave();
+    if (complete) return 'league';
+    if (left > 0) await view().beforeMove(state.current);
+    return 'continue';
   }
 
   /** Ejecuta (o retoma tras recargar) el evento pendiente del turno. */
@@ -494,14 +568,16 @@
       case 'move': {
         busy = true;
         renderTurnPanel();
-        const ok = await animateMove(pd.steps, run);
-        if (!ok) return;
+        const result = await animateMove(pd.steps, run, pd.depth);
+        if (!result) return;
         busy = false;
+        if (result === 'league') return startLeague();
         state.pending = null;
         return landOn(pd.depth, run);
       }
       case 'question':
-        return showQuestion();
+        // Pregunta retenida (un personaje estaba hablando): al retomar, se muestra ya.
+        return pd.hold ? releaseQuestion() : showQuestion();
       case 'choose':
         return showChooser();
       case 'rocket':
@@ -516,8 +592,11 @@
     }
   }
 
-  /** 2) Mueve la ficha casillero por casillero. Devuelve false si se canceló. */
-  async function animateMove(steps, run) {
+  /**
+   * 2) Mueve la ficha casillero por casillero. Devuelve false si se canceló,
+   * 'league' si Mew completó las 4 medallas y true al terminar.
+   */
+  async function animateMove(steps, run, depth = 0) {
     const seat = state.current;
     const p = cur();
     const dir = Math.sign(steps);
@@ -525,17 +604,19 @@
     if (total === 0) return true;
     await view().beforeMove(seat);
     if (!alive(run)) return false;
-    const racing = isRacing(p);
     for (let k = 0; k < total; k++) {
       p.pos = (p.pos + dir + BOARD_SIZE) % BOARD_SIZE;
-      // Con 4 medallas, al cruzar o pisar Pueblo Paleta la ficha se detiene ahí.
-      const stop = racing && dir > 0 && p.pos === 0;
+      // Al pasar por Pueblo Paleta (hacia adelante) aparece Mew: la ficha frena ahí.
+      const mew = dir > 0 && p.pos === 0 && !hasAllMedals(p);
       renderTokens();
       view2D.step(seat);
       Sound.play('step');
-      await Promise.all([delay(STEP_MS), view3d ? view3d.step(seat, p.pos, stop ? 0 : total - k - 1) : null]);
+      await Promise.all([delay(STEP_MS), view3d ? view3d.step(seat, p.pos, mew ? 0 : total - k - 1) : null]);
       if (!alive(run)) return false;
-      if (stop) break;
+      if (mew) {
+        const gift = await mewGift(run, total - k - 1, depth);
+        if (gift !== 'continue') return gift;
+      }
     }
     await view().afterMove(seat, p.pos);
     return alive(run);
@@ -546,24 +627,11 @@
     const p = cur();
     const sq = BOARD_LAYOUT[p.pos];
     renderAll();
-    if (sq.type !== 'move') {
-      await view().overview();
-      if (!alive(run)) return;
-    }
-
-    // Recta final: solo cuentan Pueblo Paleta y las casillas de movimiento o Monte Moon.
-    if (isRacing(p)) {
-      if (sq.type === 'start') {
-        addLog(`🏁 ${p.name} llega a Pueblo Paleta.`, state.current);
-        toast(`🏆 ¡${p.name} llega a Pueblo Paleta! Desafío de la Liga Pokémon`);
-        return openQuestion(LEAGUE_KEY, 'final');
-      }
-      if (sq.type !== 'move' && sq.type !== 'skip') {
-        addLog(`${p.name} corre hacia Pueblo Paleta.`, state.current);
-        toast(`🏁 ${p.name} corre hacia Pueblo Paleta`);
-        return endTurn();
-      }
-    }
+    // Transición al caer: las casillas con escena propia (Team Rocket, Centro
+    // Pokémon, Monte Moon, Dodrio, Diglett…) arrancan directo desde el plano
+    // cercano; las demás muestran su ventana enseguida mientras la cámara sube
+    // a la vista de arriba (sin esperarla).
+    if (!SCENE_SQUARES.includes(sq.type)) view().overview();
 
     switch (sq.type) {
       case 'question':
@@ -578,67 +646,98 @@
             { medal: sq.cat },
           );
         }
-        return openQuestion(sq.cat, 'normal');
+        view().announce(readyForMedal(p) ? `🏅 ¡Pregunta por la medalla de ${CATS[sq.cat].name}!` : `❓ ¡Pregunta de ${CATS[sq.cat].name}!`, CATS[sq.cat].color);
+        return openQuestion(sq.cat, 'normal', null, ANNOUNCE_MS);
 
-      case 'medal':
+      case 'medal': {
+        const leader = LEADERS[sq.cat];
         if (p.medals[sq.cat]) {
           addLog(`${p.name} ya tiene la medalla de ${CATS[sq.cat].name}.`, state.current);
-          return setInfo(
-            'Medalla ya obtenida',
-            `${p.name} ya tiene la Medalla de ${CATS[sq.cat].name} y no puede duplicarla. No hay pregunta en esta visita.`,
-            { medal: sq.cat },
-          );
+          await view().visitorArrive(leader.model, state.current);
+          if (!alive(run)) return;
+          await characterSays(leader.kind, `Ya tienes la ${CATS[sq.cat].badgeName}, ${p.name}. ¡Vuelve cuando quieras a desafiarme!`);
+          if (!alive(run)) return;
+          Talk.close();
+          view().visitorLeave();
+          return endTurn();
         }
         addLog(`${p.name} cae en la medalla directa de ${CATS[sq.cat].name}.`, state.current);
-        return openQuestion(sq.cat, 'medal');
+        // La pregunta se guarda ya; el reloj corre cuando el líder termina de hablar.
+        openQuestion(sq.cat, 'medal', { hold: true });
+        const pd = state.pending;
+        await view().visitorArrive(leader.model, state.current);
+        if (!alive(run) || state.pending !== pd) return;
+        await characterSays(leader.kind, leader.line(p.name, CATS[sq.cat].badgeName));
+        if (!alive(run) || state.pending !== pd) return;
+        Talk.close();
+        return releaseQuestion();
+      }
 
       case 'move': {
         if (depth >= MAX_CHAIN) return endTurn();
         const verb = sq.steps > 0 ? `avanza ${sq.steps}` : `retrocede ${-sq.steps}`;
         addLog(`${sq.name}: ${p.name} ${verb}.`, state.current);
         Sound.play('special');
-        toast(`${sq.name}: ${p.name} ${verb} casillas`);
         state.pending = { type: 'move', steps: sq.steps, depth: depth + 1 };
         saveGame();
         renderAll();
-        await delay(800);
-        if (!alive(run)) return;
+        const visitor = VISITOR_LINES[sq.art];
+        if (visitor) {
+          // Dodrio te lleva / Diglett te hace tropezar: el personaje aparece y habla.
+          await view().visitorArrive(sq.art, state.current);
+          if (!alive(run)) return;
+          await characterSays(sq.art, visitor(p.name, Math.abs(sq.steps)));
+          if (!alive(run)) return;
+          Talk.close();
+          if (sq.art === 'dodrio') view().visitorEscort(state.current);
+          else view().visitorLeave();
+        } else {
+          toast(`${sq.name}: ${p.name} ${verb} casillas`);
+          await delay(800);
+          if (!alive(run)) return;
+        }
         return runPending(run);
       }
 
       case 'skip':
         p.skipNext = true;
         addLog(`${p.name} se pierde en el Monte Moon.`, state.current);
-        return setInfo('Monte Moon', `¡Una bandada de Zubat! ${p.name} se pierde en la cueva y pierde su próximo turno.`, { art: 'zubat' });
+        saveGame();
+        await view().zubatAttack(state.current);
+        if (!alive(run)) return;
+        await Talk.say({ text: `¡Tres Zubat atacan a ${p.name} en el Monte Moon! Se pierde en la cueva y pierde su próximo turno.`, auto: true, narrator: true });
+        if (!alive(run)) return;
+        Talk.close();
+        return endTurn();
 
       case 'rocket': {
         addLog(`🚀 ${p.name} cae en la casilla del Team Rocket.`, state.current);
-        await view().rocketArrive();
+        Sound.play('special');
+        await view().rocketArrive(state.current);
         if (!alive(run)) return;
         const options = stealOptions(state.current);
         if (!options.length) {
+          await meowthSays(`¡Miau, miau! Vinimos a ayudarte, ${p.name}… pero nadie tiene una medalla que te falte. ¡Qué pérdida de tiempo!`);
+          if (!alive(run)) return;
+          Talk.close();
           view().rocketLeave(false);
-          return setInfo(
-            'Team Rocket',
-            `«¡Prepárense para los problemas!»… pero ningún rival tiene una medalla que ${p.name} no tenga. No hay nada que robar.`,
-            { art: 'meowth' },
-          );
+          return endTurn();
         }
-        state.pending = { type: 'rocket', options };
+        state.pending = { type: 'rocket', options, victim: null };
         saveGame();
-        return showRocket();
+        return showRocket(true);
       }
 
       case 'wild':
         addLog(`${p.name} llega al Centro Pokémon.`, state.current);
-        state.pending = { type: 'choose' };
+        state.pending = { type: 'choose', chosen: null };
         saveGame();
         return showChooser();
 
       case 'start':
       default:
+        // Mew ya pasó al llegar (ver animateMove).
         addLog(`${p.name} descansa en Pueblo Paleta.`, state.current);
-        toast(`${p.name} descansa en Pueblo Paleta`);
         return endTurn();
     }
   }
@@ -665,6 +764,17 @@
     pulseTurn();
     view().turnStart(state.current);
     Sound.cry(cur().creature);
+    scheduleLeagueRetry();
+  }
+
+  /** Con las 4 medallas, el turno empieza directo con el desafío de la Liga (tras el cartel del turno). */
+  function scheduleLeagueRetry() {
+    if (!state || state.phase !== 'idle' || !hasAllMedals(cur())) return;
+    const run = gameId;
+    const seat = state.current;
+    delay(1500).then(() => {
+      if (alive(run) && state.phase === 'idle' && state.current === seat) startLeague();
+    });
   }
 
   function pulseTurn() {
@@ -702,33 +812,65 @@
   /** Categorías elegibles en el Centro Pokémon (con la pregunta por la medalla, solo las que faltan). */
   const choosableCats = (p) => CAT_KEYS.filter((c) => !(readyForMedal(p) && p.medals[c]));
 
-  function showChooser() {
+  /** Centro Pokémon: llega Chansey y pregunta la categoría (opciones en la caja de diálogo). */
+  async function showChooser() {
+    const pd = state.pending;
+    const p = cur();
+    const run = gameId;
     renderAll();
-    const allowed = choosableCats(cur());
-    $('chooseGrid').replaceChildren(
-      ...CAT_KEYS.map((c) =>
-        el(
-          'button',
-          {
-            class: 'choose-btn',
-            attrs: { type: 'button', 'data-blocked': allowed.includes(c) ? null : '1', title: allowed.includes(c) ? null : 'Ya tienes esta medalla' },
-            style: { '--cat': CATS[c].color },
-            on: { click: () => hostMayAct() && chooseCategory(c) },
-          },
-          [categoryIcon(c), el('span', { text: CATS[c].name })],
-        ),
-      ),
-    );
+    const chosenBefore = pd.chosen; // ya elegida antes de recargar
+    await view().visitorArrive('chansey', state.current);
+    if (!alive(run) || state.pending !== pd) return;
+    if (pd.chosen) {
+      // Se recargó a mitad de la escena: se retoma. Si se eligió mientras
+      // Chansey llegaba (desde el celular), esa elección ya siguió su curso.
+      if (chosenBefore) chooseCategory(pd.chosen, true);
+      return;
+    }
+    const allowed = choosableCats(p);
+    const choices = CAT_KEYS.map((c) => ({ value: c, label: CATS[c].name, node: categoryIcon(c), blocked: !allowed.includes(c) }));
+    const ask = readyForMedal(p) ? '¡Tu próxima pregunta es por la medalla! ¿De qué categoría la quieres?' : '¿De qué categoría quieres tu pregunta?';
+    const cat = await characterSays('chansey', `¡Bienvenido al Centro Pokémon, ${p.name}! ${ask}`, choices);
     applyLocks();
-    openOverlay('chooseDialog');
+    if (cat == null || !alive(run) || state.pending !== pd) return;
+    if (hostMayAct()) chooseCategory(cat);
   }
 
-  function chooseCategory(cat) {
-    if (!state || state.pending?.type !== 'choose' || !choosableCats(cur()).includes(cat)) return;
-    closeOverlay('chooseDialog');
-    addLog(`${cur().name} elige ${CATS[cat].name}.`, state.current);
+  async function chooseCategory(cat, resumed) {
+    const pd = state && state.pending;
+    if (!pd || pd.type !== 'choose' || !choosableCats(cur()).includes(cat)) return;
+    if (pd.chosen && !resumed) return; // ya se eligió
+    const run = gameId;
+    if (!resumed) {
+      pd.chosen = cat;
+      saveGame();
+      notify();
+      addLog(`${cur().name} elige ${CATS[cat].name}.`, state.current);
+    }
+    await characterSays('chansey', `¡${CATS[cat].name}, muy bien! Te deseo mucha suerte.`);
+    if (!alive(run) || state.pending !== pd) return;
+    Talk.close();
+    view().visitorLeave();
     openQuestion(cat, 'normal');
   }
+
+  /** Casillas con escena propia en 3D (no pasan por la vista de arriba al caer). */
+  const SCENE_SQUARES = ['move', 'rocket', 'wild', 'skip', 'medal'];
+
+  /** Líderes de gimnasio de cada medalla directa, con su Pokémon. */
+  const LEADERS = {
+    tipos: { kind: 'erika', model: 'tangela', line: (n, b) => `Soy Erika, del Gimnasio de Azulona. Responde con calma, ${n}, y la ${b} será tuya.` },
+    pokedex: { kind: 'brock', model: 'onix', line: (n, b) => `¡Soy Brock, líder del Gimnasio de Plateada! Si aciertas, ${n}, te llevas la ${b}.` },
+    habilidades: { kind: 'surge', model: 'raichu', line: (n, b) => `¡Hey, recluta ${n}! Soy Lt. Surge, de Ciudad Carmín. Acierta y la ${b} es tuya.` },
+    cambalache: { kind: 'koga', model: 'venomoth', line: (n, b) => `Koga, maestro ninja de Fucsia. Si tu respuesta es certera, ${n}, la ${b} será tuya.` },
+  };
+
+  /** Lo que dicen Dodrio, Diglett y Tentacool antes de mover la ficha. */
+  const VISITOR_LINES = {
+    tentacool: (name, n) => `¡Tenta, tentacool! Te atrapé, ${name}… las corrientes de las Islas Espuma te arrastran ${n} casillas hacia atrás.`,
+    dodrio: (name, n) => `¡Dodrio, dodrio, dodrio! ¡Agárrate, ${name}! Te llevo ${n} casillas adelante.`,
+    diglett: (name, n) => `¡Diglett, dig, dig! Ups… ${name} tropieza en un túnel y retrocede ${n} casillas.`,
+  };
 
   // ═════════════════════ Team Rocket ═════════════════════
 
@@ -740,46 +882,109 @@
       .filter((o) => o.seat !== thiefSeat && o.cats.length);
   }
 
-  function showRocket() {
+  /** Quién habla en la caja de diálogo: nombre y retrato (el Pokémon). */
+  const SPEAKERS = {
+    meowth: { name: 'Meowth', art: 'meowth' },
+    chansey: { name: 'Chansey', art: 'chansey' },
+    dodrio: { name: 'Dodrio', art: 'dodrio' },
+    diglett: { name: 'Diglett', art: 'diglett' },
+    tentacool: { name: 'Tentacool', art: 'tentacool' },
+    mew: { name: 'Mew', art: 'mew' },
+    erika: { name: 'Erika', art: 'tangela' },
+    brock: { name: 'Brock', art: 'onix' },
+    surge: { name: 'Lt. Surge', art: 'raichu' },
+    koga: { name: 'Koga', art: 'venomoth' },
+    lance: { name: 'Lance', art: 'dragonite' },
+  };
+
+  /**
+   * Un personaje habla en la caja de diálogo (y se mueve al hablar en 3D). Con
+   * `choices` se resuelve con la opción elegida; si no, avanza solo o al tocar.
+   */
+  function characterSays(kind, text, choices) {
+    view().characterCry();
+    return Talk.say({
+      name: SPEAKERS[kind].name,
+      art: SPEAKERS[kind].art,
+      text,
+      choices,
+      auto: !choices,
+      onTalk: (on) => view().characterTalk(on),
+    });
+  }
+
+  const meowthSays = (text, choices) => characterSays('meowth', text, choices);
+
+  /**
+   * Meowth se presenta y el ladrón elige a quién robarle (en la caja de
+   * diálogo). `arrived`: el globo ya bajó (si no, se retoma tras recargar).
+   */
+  async function showRocket(arrived) {
     const pd = state.pending;
     const thief = cur();
+    const run = gameId;
+    const victimBefore = pd.victim; // ya elegida antes de recargar
     renderAll();
-    $('rocketIcon').replaceChildren(artIcon('meowth'));
-    $('rocketText').textContent = `«¡Prepárense para los problemas!» ${thief.name}, elige a qué rival robarle una medalla. Podrá defenderla con una pregunta.`;
-    $('rocketGrid').replaceChildren(
-      ...pd.options.map((o) => {
-        const v = state.players[o.seat];
-        return el('button', { class: 'rocket-btn', attrs: { type: 'button' }, style: { '--pc': v.color }, on: { click: () => hostMayAct() && chooseVictim(o.seat) } }, [
-          tokenNode(v),
-          el('span', { class: 'rocket-name', text: v.name }),
-          el('span', { class: 'rocket-medals' }, o.cats.map((c) => medalIcon(c))),
-        ]);
-      }),
-    );
-    Sound.play('special');
+    if (!arrived) {
+      Sound.play('special');
+      await view().rocketArrive(state.current);
+      if (!alive(run) || state.pending !== pd) return;
+    }
+    if (pd.victim != null) {
+      // Se recargó a mitad de la escena: se retoma (si se eligió mientras
+      // bajaba el globo, esa elección ya siguió su curso).
+      if (victimBefore != null) chooseVictim(pd.victim, true);
+      return;
+    }
+    await meowthSays(`¡Miau, miau! ¡El Team Rocket llegó para ayudarte, ${thief.name}!`);
+    if (!alive(run) || state.pending !== pd || pd.victim != null) return;
+    const choices = pd.options.map((o) => {
+      const v = state.players[o.seat];
+      const node = el('span', { class: 'talk-choice-player', style: { '--pc': v.color } }, [tokenNode(v), el('span', { class: 'rocket-medals' }, o.cats.map((c) => medalIcon(c)))]);
+      return { value: o.seat, label: v.name, node };
+    });
+    const victim = await meowthSays('Te conseguimos una medalla que te falta… ¿A quién se la quitamos, miau?', choices);
     applyLocks();
-    openOverlay('rocketDialog');
+    if (victim == null || !alive(run) || state.pending !== pd) return;
+    if (hostMayAct()) chooseVictim(victim);
   }
 
   /** El ladrón eligió víctima: sale al azar una medalla robable y la víctima la defiende. */
-  function chooseVictim(seat) {
+  async function chooseVictim(seat, resumed) {
     const pd = state && state.pending;
     if (!pd || pd.type !== 'rocket') return;
+    if (pd.victim != null && !resumed) return; // ya se eligió
     const option = pd.options.find((o) => o.seat === seat);
     if (!option) return;
-    const cat = randomOf(option.cats);
-    closeOverlay('rocketDialog');
-    addLog(`🚀 ${cur().name} intenta robarle la Medalla de ${CATS[cat].name} a ${state.players[seat].name}.`, state.current);
+    const run = gameId;
+    const cat = pd.cat || randomOf(option.cats);
+    if (!resumed) {
+      pd.victim = seat;
+      pd.cat = cat;
+      saveGame();
+      notify();
+      addLog(`🚀 ${cur().name} intenta robarle la Medalla de ${CATS[cat].name} a ${state.players[seat].name}.`, state.current);
+    }
+    const v = state.players[seat];
+    await meowthSays(`¡Buena elección! ${v.name}, si respondes bien, conservas tu Medalla de ${CATS[cat].name}. Si no… ¡es nuestra, miau!`);
+    if (!alive(run) || state.pending !== pd) return;
+    Talk.close();
     openQuestion(cat, 'defense', { answerer: seat, thief: state.current });
   }
 
   // ═════════════════════ Preguntas ═════════════════════
 
+  /** Pausa entre el anuncio de la casilla y la ventana de la pregunta (la cámara sube mientras tanto). */
+  const ANNOUNCE_MS = 900;
+
   /**
    * Abre una pregunta. `extra` permite que responda otro jugador (defensa del
-   * Team Rocket: { answerer, thief }).
+   * Team Rocket: { answerer, thief }). `lead`: la pregunta queda creada y
+   * guardada ya (recargar no la pierde), pero la ventana aparece `lead` ms
+   * después y el reloj empieza a correr recién entonces.
    */
-  function openQuestion(cat, mode, extra) {
+  function openQuestion(cat, mode, extra, lead = 0) {
+    const hold = !!(extra && extra.hold); // un personaje habla antes: sin reloj ni ventana hasta releaseQuestion()
     const qi = drawQuestion(cat);
     state.pending = {
       type: 'question',
@@ -791,9 +996,27 @@
       answered: false,
       chosen: null,
       outcome: null,
-      deadline: Date.now() + ANSWER_MS, // se responde dentro de ANSWER_SECONDS
+      deadline: hold ? null : Date.now() + lead + ANSWER_MS, // se responde dentro de ANSWER_SECONDS (tras el anuncio)
       ...(extra || {}),
+      hold,
     };
+    saveGame();
+    if (hold) return notify();
+    if (!lead) return showQuestion();
+    const pd = state.pending;
+    const run = gameId;
+    notify();
+    return delay(lead).then(() => {
+      if (alive(run) && state.pending === pd) showQuestion();
+    });
+  }
+
+  /** Muestra la pregunta retenida y pone a correr el reloj. */
+  function releaseQuestion() {
+    const pd = state && state.pending;
+    if (!pd || pd.type !== 'question' || !pd.hold) return;
+    pd.hold = false;
+    pd.deadline = Date.now() + ANSWER_MS;
     saveGame();
     showQuestion();
   }
@@ -940,7 +1163,7 @@
     if (outcome.stolen) addLog(`🚀 ${state.players[pd.thief].name} le roba la Medalla de ${catName} a ${p.name}.`, pd.thief);
     if (outcome.reachedGoal) {
       const who = pd.mode === 'defense' ? pd.thief : seat;
-      addLog(`🏁 ${state.players[who].name} tiene ${MEDALS_TO_WIN} medallas: ¡a Pueblo Paleta!`, who);
+      addLog(`🏆 ${state.players[who].name} tiene ${MEDALS_TO_WIN} medallas: ¡al desafío de la Liga!`, who);
     }
 
     Sound.play(correct ? 'correct' : 'wrong');
@@ -960,7 +1183,7 @@
   function outcomeMessage(pd) {
     const o = pd.outcome;
     const catName = CATS[pd.cat].name;
-    const goal = o.reachedGoal ? ` ¡Ya tienes las ${MEDALS_TO_WIN} medallas: corre a Pueblo Paleta para el desafío de la Liga Pokémon!` : '';
+    const goal = o.reachedGoal ? ` ¡Ya tienes las ${MEDALS_TO_WIN} medallas! Lance te espera para el desafío de la Liga Pokémon.` : '';
     if (pd.mode === 'defense') {
       const victim = state.players[pd.answerer].name;
       const thief = state.players[pd.thief].name;
@@ -968,7 +1191,7 @@
       return `¡El Team Rocket se lleva la Medalla de ${catName} de ${victim} para ${thief}!${o.reachedGoal ? ` ¡${thief} ya tiene las ${MEDALS_TO_WIN} medallas: a Pueblo Paleta!` : ''}`;
     }
     if (pd.mode === 'final') {
-      return o.correct ? '¡Venciste el desafío de la Liga Pokémon! ¡Eres el nuevo Campeón!' : 'La Liga te espera: en tu próximo turno respondes otro desafío desde Pueblo Paleta.';
+      return o.correct ? '¡Venciste el desafío de la Liga Pokémon! ¡Eres el nuevo Campeón!' : 'Lance te espera: en tu próximo turno respondes otro desafío de la Liga.';
     }
     if (pd.mode === 'medal') {
       if (o.medal === 'new') return `¡Ganas directamente la Medalla de ${catName}! Tus aciertos no cambian (${o.streakAfter} de ${HITS_FOR_MEDAL}).${goal}`;
@@ -1025,24 +1248,8 @@
     const pd = state.pending;
     if (!pd || pd.type !== 'question' || !pd.answered) return;
     closeOverlay('questionDialog');
-    if (pd.mode === 'defense') {
-      // Sin ventanas encima: la medalla vuela al ladrón o el globo sale volando.
-      const run = gameId;
-      rocketScene = true;
-      try {
-        if (pd.outcome.stolen) await view().steal(pd.answerer, pd.thief, pd.cat);
-        else await view().rocketLeave(true);
-      } finally {
-        rocketScene = false;
-      }
-      if (!alive(run)) return;
-    }
-    if (pd.outcome.stolen) {
-      // La medalla robada se celebra como medalla nueva del ladrón (jugador en turno).
-      state.pending = { type: 'medal', cat: pd.cat, from: pd.answerer };
-      saveGame();
-      return showMedal();
-    }
+    if (pd.mode === 'defense') return rocketFinale(pd);
+    if (pd.mode === 'medal' || pd.mode === 'final') view().visitorLeave(); // el líder o Lance se despiden
     if (pd.outcome.medal === 'new') {
       state.pending = { type: 'medal', cat: pd.outcome.cat || pd.cat };
       saveGame();
@@ -1051,15 +1258,41 @@
     endTurn();
   }
 
+  /** Cierre de la escena del Team Rocket: la medalla vuela al ladrón o el globo sale volando. */
+  async function rocketFinale(pd) {
+    const run = gameId;
+    const thief = state.players[pd.thief];
+    const victim = state.players[pd.answerer];
+    rocketScene = true;
+    try {
+      if (pd.outcome.stolen) {
+        Sound.play('medal');
+        const goal = pd.outcome.reachedGoal ? ` ¡Y con esta ya tienes las ${MEDALS_TO_WIN}! Lance te espera…` : '';
+        await Promise.all([view().steal(pd.answerer, pd.thief, pd.cat), meowthSays(`¡Miau-ravilloso! La Medalla de ${CATS[pd.cat].name} de ${victim.name} ahora es tuya, ${thief.name}.${goal}`)]);
+      } else {
+        await meowthSays(`¡¿Quéee?! ${victim.name} sabía la respuesta… ¡Esto no estaba en el plan, miau!`);
+        if (!alive(run)) return;
+        Talk.close();
+        await view().rocketLeave(true);
+        if (!alive(run)) return;
+        await Talk.say({ text: '¡El Team Rocket sale volando otra vez!', auto: true, narrator: true });
+      }
+    } finally {
+      rocketScene = false;
+    }
+    if (!alive(run)) return;
+    Talk.close();
+    endTurn();
+  }
+
   function showMedal() {
     const pd = state.pending;
     const p = cur();
     renderAll();
     $('medalBig').replaceChildren(medalIcon(pd.cat));
-    $('medalTitle').textContent = pd.from != null ? `¡${CATS[pd.cat].badgeName} robada!` : `¡${CATS[pd.cat].badgeName}!`;
-    const stolenFrom = pd.from != null ? `El Team Rocket se la quitó a ${state.players[pd.from].name}. ` : '';
-    $('medalText').textContent = stolenFrom + (isRacing(p)
-      ? `Medalla de ${CATS[pd.cat].name}. ¡${p.name} tiene las ${MEDALS_TO_WIN} medallas! Ahora debe volver a Pueblo Paleta y vencer el desafío de la Liga Pokémon.`
+    $('medalTitle').textContent = `¡${CATS[pd.cat].badgeName}!`;
+    $('medalText').textContent = (hasAllMedals(p)
+      ? `Medalla de ${CATS[pd.cat].name}. ¡${p.name} tiene las ${MEDALS_TO_WIN} medallas! Ahora enfrenta a Lance en el desafío de la Liga Pokémon.`
       : `Medalla de ${CATS[pd.cat].name}. ${p.name} tiene ${medalCount(p)} de las ${MEDALS_TO_WIN} que necesita.`);
     Sound.cry(p.creature);
     openOverlay('medalDialog');
@@ -1068,7 +1301,7 @@
   function onMedalOk() {
     if (!state || state.pending?.type !== 'medal') return;
     closeOverlay('medalDialog');
-    endTurn();
+    finishTurn();
   }
 
   // ═════════════════════ Victoria ═════════════════════
@@ -1162,6 +1395,7 @@
     toast('Partida recuperada');
     // Si se cerró a mitad de un evento, se retoma ese mismo evento.
     if (state.phase === 'busy') runPending(gameId);
+    else scheduleLeagueRetry();
   }
 
   function playersConfig() {
@@ -1296,16 +1530,18 @@
         rollDice();
         return true;
       case 'answer':
-        if (!pd || pd.type !== 'question' || pd.answered) return false;
+        if (!pd || pd.type !== 'question' || pd.answered || pd.hold) return false;
         if (!Number.isInteger(action.i) || action.i < 0 || action.i > 3) return false;
         answerQuestion(action.i);
         return true;
       case 'choose':
-        if (!pd || pd.type !== 'choose' || !choosableCats(cur()).includes(action.cat)) return false;
+        if (!pd || pd.type !== 'choose' || pd.chosen || !choosableCats(cur()).includes(action.cat)) return false;
+        Talk.close(); // si eligió desde el celular, se cierran las opciones de esta pantalla
         chooseCategory(action.cat);
         return true;
       case 'steal':
-        if (!pd || pd.type !== 'rocket' || !pd.options.some((o) => o.seat === action.victim)) return false;
+        if (!pd || pd.type !== 'rocket' || pd.victim != null || !pd.options.some((o) => o.seat === action.victim)) return false;
+        Talk.close(); // si eligió desde el celular, se cierran las opciones de esta pantalla
         chooseVictim(action.victim);
         return true;
       case 'continue':
@@ -1326,6 +1562,8 @@
   function publicPending() {
     const pd = state.pending;
     if (!pd) return null;
+    // Pregunta retenida: el dispositivo espera a que el personaje termine de hablar.
+    if (pd.type === 'question' && pd.hold) return { type: 'scene' };
     if (pd.type === 'question') {
       const q = BANK[pd.cat][pd.qi];
       const view = {
@@ -1362,8 +1600,9 @@
       return view;
     }
     if (pd.type === 'info') return { type: 'info', title: pd.title, text: pd.text };
-    if (pd.type === 'rocket') return { type: 'rocket', options: pd.options.map((o) => ({ seat: o.seat, cats: [...o.cats] })) };
-    if (pd.type === 'medal') return { type: 'medal', cat: pd.cat, from: pd.from ?? null };
+    if (pd.type === 'rocket') return { type: 'rocket', victim: pd.victim ?? null, options: pd.options.map((o) => ({ seat: o.seat, cats: [...o.cats] })) };
+    if (pd.type === 'medal') return { type: 'medal', cat: pd.cat };
+    if (pd.type === 'choose') return { type: 'choose', chosen: pd.chosen || null };
     return { type: pd.type };
   }
 
@@ -1384,8 +1623,7 @@
         streak: p.streak,
         medals: { ...p.medals },
         skipNext: p.skipNext,
-        racing: isRacing(p),
-        atFinal: atFinal(p),
+        league: hasAllMedals(p),
       })),
       pending: publicPending(),
       log: state.log.slice(-5).map((l) => l.t),

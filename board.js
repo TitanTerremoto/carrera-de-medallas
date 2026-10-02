@@ -115,7 +115,7 @@
     }));
     items.push(
       { icon: medalIcon('tipos'), color: '#f8c630', title: 'Medalla directa', text: 'Borde dorado. Acierta una pregunta y ganas esa medalla de gimnasio. No cambia tus aciertos.' },
-      { icon: artIcon('pokeball'), color: '#12b886', title: 'Pueblo Paleta', text: 'La salida. Caer aquí no tiene efecto.' },
+      { icon: artIcon('pokeball'), color: '#12b886', title: 'Pueblo Paleta', text: 'La salida. Al pasar o caer (avanzando), Mew te regala una medalla al azar.' },
       { icon: artIcon('dodrio'), color: '#12b886', title: 'Dodrio veloz', text: 'Te lleva 2 o 3 casillas adelante y aplicas la nueva casilla.' },
       { icon: artIcon('diglett'), color: '#fa5252', title: 'Diglett', text: 'Te hace tropezar: retrocedes 2 o 3 casillas y aplicas la nueva.' },
       { icon: artIcon('zubat'), color: '#5c3d2e', title: 'Monte Moon', text: 'Te pierdes entre Zubat: pierdes tu próximo turno.' },

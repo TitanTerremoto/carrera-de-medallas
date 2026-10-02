@@ -9,6 +9,8 @@ export const ease = {
   inOut: (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2),
   out: (t) => 1 - (1 - t) ** 3,
   in: (t) => t * t * t,
+  // Arranque y frenado bien suaves: para movimientos de cámara.
+  inOutCubic: (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2),
   // Rebote al final, típico de "caer" en una casilla.
   outBack: (t) => {
     const c1 = 1.70158;

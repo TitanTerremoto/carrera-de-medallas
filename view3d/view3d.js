@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { createStage, overviewPose, closePose } from './scene.js';
 import { Piece } from './pieces.js';
 import { createFx } from './fx.js';
-import { createRocket } from './rocket.js';
+import { createSceneDirector } from './sceneDirector.js';
 import { tween, tickTweens, ease, wait, lerp } from './tween.js';
 
 const Game = window.CarreraDeMedallas;
@@ -67,11 +67,24 @@ async function start() {
   }
   const { scene, camera, renderer, tiles } = stage;
   const fx = createFx(scene);
-  const rocket = createRocket(scene, fx);
+  // Escenas de las casillas especiales: Team Rocket, Chansey, Dodrio, Diglett, Zubat.
+  const director = createSceneDirector(scene, fx, {
+    pieces: () => pieces,
+    camPref: () => camPref,
+    inScene: () => mode === 'scene',
+    enterScene: () => {
+      followSeat = null;
+      orbit = null;
+      setMode('scene');
+    },
+    transitionTo: (pose, ms) => transitionTo(pose, ms),
+    showBanner: (text, color) => showBanner(text, color),
+    faceOutward: (piece) => faceOutward(piece),
+  });
 
   // ── Cámara ──
   const cam = { position: new THREE.Vector3(), target: new THREE.Vector3(), fov: 30 };
-  let mode = 'overview'; // 'overview' | 'close'
+  let mode = 'overview'; // 'overview' | 'close' | 'scene' (escena de una casilla especial)
   let camPref = readCamPref(); // 'auto' | 'top'
   let transitioning = 0;
   let followSeat = null;
@@ -84,15 +97,44 @@ async function start() {
   }
   setPose(overviewPose(camera.aspect));
 
+  /** Posición de la cámara respecto de lo que mira: distancia, inclinación y giro. */
+  function orbitOf(position, target) {
+    const off = position.clone().sub(target);
+    const r = Math.max(0.001, off.length());
+    return { r, polar: Math.acos(THREE.MathUtils.clamp(off.y / r, -1, 1)), az: Math.atan2(off.x, off.z) };
+  }
+
+  /*
+   * Movimiento de cámara tipo grúa: en vez de deslizarse en línea recta, gira
+   * alrededor de lo que mira (inclinación y giro), acerca o aleja con zoom
+   * parejo y frena suave. Desde la vista cenital toma el giro de destino, así
+   * no da vueltas raras. Si llega otro movimiento, el anterior se abandona.
+   */
+  let camMove = 0;
   async function transitionTo(pose, ms) {
-    const from = { p: cam.position.clone(), t: cam.target.clone(), f: cam.fov };
+    const id = ++camMove;
+    const fromT = cam.target.clone();
+    const a = orbitOf(cam.position, cam.target);
+    const b = orbitOf(pose.position, pose.target);
+    const flat = 0.06; // casi vertical: el giro no importa
+    if (a.polar < flat) a.az = b.az;
+    if (b.polar < flat) b.az = a.az;
+    let daz = b.az - a.az;
+    daz = Math.atan2(Math.sin(daz), Math.cos(daz)); // por el lado corto
+    const fromFov = cam.fov;
+    const off = new THREE.Vector3();
     transitioning++;
     try {
       await tween(ms, (k) => {
-        cam.position.lerpVectors(from.p, pose.position, k);
-        cam.target.lerpVectors(from.t, pose.target, k);
-        cam.fov = lerp(from.f, pose.fov, k);
-      }, ease.inOut);
+        if (id !== camMove) return;
+        cam.target.lerpVectors(fromT, pose.target, k);
+        const r = a.r * (b.r / a.r) ** k;
+        const polar = lerp(a.polar, b.polar, k);
+        const az = a.az + daz * k;
+        off.set(Math.sin(polar) * Math.sin(az), Math.cos(polar), Math.sin(polar) * Math.cos(az)).multiplyScalar(r);
+        cam.position.copy(cam.target).add(off);
+        cam.fov = lerp(fromFov, pose.fov, k);
+      }, ease.inOutCubic);
     } finally {
       transitioning--;
     }
@@ -100,7 +142,9 @@ async function start() {
 
   function setMode(next) {
     mode = next;
-    stageEl.classList.toggle('cam-close', next === 'close');
+    // En los planos cercanos (y la escena del Team Rocket) se oculta el panel del turno.
+    stageEl.classList.toggle('cam-close', next === 'close' || next === 'scene');
+    stageEl.classList.toggle('cam-scene', next === 'scene');
   }
 
   async function goClose(seat, ms = 1000) {
@@ -221,7 +265,7 @@ async function start() {
     sync(state) {
       lastState = state;
       if (!state) {
-        rocket.reset();
+        director.reset();
         for (const p of pieces) scene.remove(p.root);
         pieces = [];
         players = [];
@@ -251,11 +295,11 @@ async function start() {
         if (!introDone && lastState.log.length <= 1) await introFlyover();
         introDone = true;
         const pl = lastState.players[seat];
-        // En Pueblo Paleta con 4 medallas no hay bloque: toca el desafío final.
-        const finalTurn = pl.pos === 0 && CAT_KEYS.filter((c) => pl.medals[c]).length >= MEDALS_TO_WIN;
+        // Con las 4 medallas no hay bloque: toca el desafío de la Liga.
+        const finalTurn = CAT_KEYS.filter((c) => pl.medals[c]).length >= MEDALS_TO_WIN;
         showBanner(finalTurn ? `🏆 ¡${pl.name} desafía a la Liga Pokémon!` : `¡Turno de ${pl.name}!`, pl.color);
         fx.hideCounter();
-        await goClose(seat, 1100);
+        await goClose(seat, 1300);
         faceOutward(piece);
         if (!finalTurn) fx.showBlock(piece.root);
         if (!piece.play('cry')) piece.jump(0.35, 360);
@@ -299,7 +343,7 @@ async function start() {
             if (i !== seat && pl.pos === pos && pieces[i]) pieces[i].home = slotPosition(i, lastState.players);
           });
         }
-        await piece.hop(to, 260);
+        await Promise.all([piece.hop(to, 260), director.escortStep(seat, to, 260)]);
         piece.home = to.clone();
         fx.ring(to, '#ffffff');
         if (remaining > 0) fx.setCounter(remaining, lastState.players[seat].color, piece.root);
@@ -314,10 +358,13 @@ async function start() {
         const sq = BOARD_LAYOUT[pos];
         const color = squareColor(sq);
         fx.hideCounter();
+        director.escortEnd(seat);
         faceOutward(piece);
         fx.ring(tiles[pos].center, color);
         fx.burst(tiles[pos].center.clone().add(new THREE.Vector3(0, 0.2, 0)), [color, '#ffffff'], 18, 2);
-        await fx.flashTile(tiles[pos], color);
+        // El destello sigue solo; el evento de la casilla arranca enseguida.
+        fx.flashTile(tiles[pos], color);
+        await wait(250);
       });
     },
 
@@ -325,7 +372,7 @@ async function start() {
       return enqueue(async () => {
         fx.hideBlock();
         fx.hideCounter();
-        await goOverview(900);
+        await goOverview(1000);
       });
     },
 
@@ -343,33 +390,19 @@ async function start() {
       if (medal) fx.medalCoin(at, medal);
     },
 
-    /** Team Rocket: llega el globo (casilla del Team Rocket). */
-    rocketArrive() {
-      // Plano de frente y algo bajo: desde arriba el globo no se distingue.
-      let shot = null;
-      if (camPref !== 'top') {
-        followSeat = null;
-        orbit = null;
-        setMode('rocket');
-        shot = transitionTo({ fov: 52, position: new THREE.Vector3(0, 8.2, 10.4), target: new THREE.Vector3(0, 1.2, -0.6) }, 1200);
-      }
-      return Promise.all([rocket.arrive(), shot]);
-    },
-    /** Se va el globo; blastOff = la víctima defendió su medalla. */
-    async rocketLeave(blastOff) {
-      await rocket.leave(blastOff);
-      if (mode === 'rocket') await goOverview(800);
-    },
-    /** La medalla robada vuela de la víctima al ladrón (y el globo se va). */
-    async steal(victim, thief, cat) {
-      const from = pieces[victim];
-      const to = pieces[thief];
-      if (!from || !to) return;
-      await rocket.steal(from.root.position.clone(), to.root.position.clone(), cat);
-      if (!to.play('happy')) to.play('cry');
-      to.jump(0.6, 480, Math.PI * 2);
-      api.rocketLeave(false);
-    },
+    /** Cartel que anuncia lo que trae la casilla (antes de la pregunta). */
+    announce: (text, color) => showBanner(text, color),
+    // Escenas de las casillas especiales (sceneDirector.js).
+    rocketArrive: (seat) => director.rocketArrive(seat),
+    rocketLeave: (blastOff) => director.rocketLeave(blastOff),
+    steal: (victim, thief, cat) => director.steal(victim, thief, cat),
+    visitorArrive: (kind, seat) => director.visitorArrive(kind, seat),
+    visitorLeave: () => director.visitorLeave(),
+    medalGift: (seat, cat) => director.medalGift(seat, cat),
+    visitorEscort: (seat) => director.visitorEscort(seat),
+    zubatAttack: (seat) => director.zubatAttack(seat),
+    characterTalk: (on) => director.characterTalk(on),
+    characterCry: () => director.characterCry(),
 
     victory(seat) {
       return enqueue(async () => {
@@ -455,7 +488,7 @@ async function start() {
       if (!p.busy && p.home) p.root.position.lerp(p.home, 1 - Math.exp(-dt * 8));
     }
     fx.update(dt, camera);
-    rocket.update(t);
+    director.update(dt, t);
     stage.scenery.update(dt, t);
     adaptQuality(dt);
 

@@ -401,7 +401,7 @@
           token(p, 'mb-player-token'),
           el('span', { class: 'mb-player-name', text: p.name }),
           el('span', { class: 'mb-medals' }, CAT_KEYS.map((c) => el('span', { class: `mini-medal ${p.medals[c] ? 'owned' : ''}` }, [medalIcon(c)]))),
-          p.racing ? el('span', { class: 'mb-race', text: p.atFinal ? '🏆' : '🏁' }) : streakPips(p.streak),
+          p.league ? el('span', { class: 'mb-race', text: '🏆' }) : streakPips(p.streak),
         ]),
       ),
       ...(g.lastRoll ? [el('div', { class: 'mb-roll', text: `🎲 ${g.lastRoll}` })] : []),
@@ -490,14 +490,15 @@
     }
 
     if (!pd) {
-      if (g.phase === 'idle' && myTurn && g.players[mineIdx].atFinal) {
-        return [bigButton('🏆 Desafío de la Liga', () => act('roll'))];
-      }
+      // Con las 4 medallas el turno empieza solo con el desafío de la Liga (sin dado).
+      if (g.phase === 'idle' && g.players[g.current].league) return waitingFor(g, `🏆 Lance llega para el desafío de la Liga…`);
       if (g.phase === 'idle') return myTurn ? diceBlock() : waitingFor(g);
       return myTurn && g.lastRoll ? diceBlock(g.lastRoll) : waitingFor(g, `${cp.name} se mueve…`);
     }
 
     switch (pd.type) {
+      case 'scene':
+        return waitingFor(g, '💬 …');
       case 'move':
         if (myTurn && g.lastRoll) return diceBlock(g.lastRoll);
         return waitingFor(g, `${cp.name} se mueve…`);
@@ -513,6 +514,7 @@
         return out;
       }
       case 'rocket':
+        if (pd.victim != null) return waitingFor(g, `🚀 ¡El Team Rocket va por la medalla de ${g.players[pd.victim].name}!`);
         if (!myTurn) return waitingFor(g, `🚀 ${cp.name} elige a quién robar…`);
         return [
           el('h2', { text: '🚀 ¿A quién le robas?' }),
@@ -530,6 +532,7 @@
           ),
         ];
       case 'choose': {
+        if (pd.chosen) return waitingFor(g, `🏥 Chansey prepara una pregunta de ${CATS[pd.chosen].name}…`);
         if (!myTurn) return waitingFor(g, `${cp.name} elige categoría…`);
         // Con la pregunta por la medalla no se puede elegir una medalla ya ganada.
         const owned = (c) => cp.streak >= HITS_FOR_MEDAL && cp.medals[c];
@@ -553,7 +556,7 @@
       case 'medal':
         return [
           el('div', { class: 'medal-big' }, [medalIcon(pd.cat)]),
-          el('h2', { class: 'ctrl-center-text', text: `¡Medalla para ${cp.name}!${pd.from != null ? ` (robada a ${g.players[pd.from].name})` : ''}` }),
+          el('h2', { class: 'ctrl-center-text', text: `¡Medalla para ${cp.name}!` }),
           myTurn ? bigButton('¡Genial! ➜', () => act('continue')) : null,
         ].filter(Boolean);
       default:

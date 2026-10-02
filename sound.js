@@ -54,6 +54,10 @@
       tone(880, 0.05, 0.08, 'square', 0.07);
       for (let i = 0; i < 5; i++) tone(1200 + Math.random() * 900, 0.18 + i * 0.025, 0.05, 'triangle', 0.06);
     },
+    /** Voz de los personajes al hablar: un «bip» corto y algo variado. */
+    blip() {
+      tone(560 + Math.random() * 180, 0, 0.04, 'square', 0.035);
+    },
     tick() {
       tone(1320, 0, 0.05, 'square', 0.06);
     },
