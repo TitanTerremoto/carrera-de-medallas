@@ -82,6 +82,7 @@ Bots que juegan solos, para ver cómo avanza una partida sin jugadores:
 - Durante una partida: «🤖 Modo tester» en la barra de arriba enciende o
   apaga los bots sobre la partida actual.
 - Directo: `index.html?tester=1` (arranca en pausa, listo para «Probar casilla»; «▶ Seguir» deja jugar a los bots).
+- **Tecla P** (en cualquier vista, también en la de grabación): muestra u oculta el menú. Al abrirlo, con la P o con el botón, los bots quedan en pausa: se decide con «Probar casilla» o «▶ Seguir».
 
 **Probar casilla:** en el panel, elige cualquiera de las 36 casillas y toca
 «🧪 Ir». El jugador en turno salta a la casilla anterior y avanza 1, así se ve

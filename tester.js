@@ -149,6 +149,7 @@
   function stop(message) {
     stopQuiet();
     document.body.classList.remove('tester-on');
+    render(); // ya sin la clase: el menú se oculta
     if (message) toast(message);
   }
 
@@ -170,11 +171,26 @@
     else toast('Revisa los jugadores: hay datos repetidos o incompletos.');
   }
 
+  /** Muestra u oculta el menú (tecla P). Al mostrarlo, los bots quedan en pausa. */
+  function togglePanel() {
+    const body = document.body;
+    if (!Game.publicView()) return startBotGame(true);
+    if (!body.classList.contains('tester-on')) {
+      body.classList.remove('tester-hidden');
+      start(true);
+      return;
+    }
+    const hide = !body.classList.contains('tester-hidden');
+    body.classList.toggle('tester-hidden', hide);
+    if (!hide && tester.on) tester.paused = true;
+    render();
+  }
+
   // ── Panel flotante ──
   function render() {
     const panel = $('testerPanel');
     const v = Game.publicView();
-    panel.hidden = !document.body.classList.contains('tester-on') || !v;
+    panel.hidden = !document.body.classList.contains('tester-on') || document.body.classList.contains('tester-hidden') || !v;
     $('btnTester').textContent = tester.on ? '🤖 Tester: activo' : '🤖 Modo tester';
     if (panel.hidden) return;
 
@@ -203,10 +219,19 @@
 
   function init() {
     $('btnBotGame').addEventListener('click', () => startBotGame());
+    // El menú siempre se abre con los bots en pausa: «▶ Seguir» los deja jugar.
     $('btnTester').addEventListener('click', () => {
-      if (!Game.publicView()) return startBotGame();
+      if (!Game.publicView()) return startBotGame(true);
       if (tester.on) stop('Modo tester apagado: la partida sigue a mano.');
-      else start();
+      else start(true);
+    });
+    // Tecla P: muestra u oculta el menú del tester en cualquier vista (también
+    // en la de grabación). Al mostrarlo, los bots quedan en pausa.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'p' && e.key !== 'P') return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+      e.preventDefault();
+      togglePanel();
     });
     $('btnTesterPause').addEventListener('click', () => {
       tester.paused = !tester.paused;

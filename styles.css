@@ -2344,9 +2344,20 @@ body.rec-mode .stage3d:hover .stage-cam-btn {
   padding: 2px 4px;
 }
 
-/* En la vista de grabación el panel solo aparece al pasar el mouse. */
+/* En la vista de grabación el panel queda semitransparente para no tapar el
+   video; al pasar el mouse se ve entero. La tecla P lo muestra u oculta. */
+.tester-key {
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  opacity: 0.7;
+}
+
 body.rec-mode .tester-panel {
-  opacity: 0;
+  opacity: 0.55;
   transition: opacity 0.2s;
 }
 
