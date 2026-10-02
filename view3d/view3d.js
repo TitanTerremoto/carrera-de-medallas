@@ -49,7 +49,7 @@ function writeCamPref(value) {
 /** Color con el que destella una casilla al caer en ella. */
 function squareColor(sq) {
   if (sq.cat) return CATS[sq.cat].color;
-  return { start: '#12b886', skip: '#795548', wild: '#f06595', move: sq.steps > 0 ? '#12b886' : '#fa5252' }[sq.type] || '#ffffff';
+  return { start: '#12b886', skip: '#795548', wild: '#f06595', rocket: '#c92a2a', move: sq.steps > 0 ? '#12b886' : '#fa5252' }[sq.type] || '#ffffff';
 }
 
 async function start() {
@@ -170,6 +170,50 @@ async function start() {
   }
 
   let lastState = null;
+  let introDone = false;
+
+  /**
+   * Recorrido de presentación al empezar una partida (estilo juego de
+   * fiesta): la cámara da una vuelta alta mostrando el diorama de Kanto y
+   * baja al primer turno. No se repite al retomar una partida avanzada.
+   */
+  async function introFlyover() {
+    introDone = true;
+    if (camPref === 'top' || document.hidden || window.GameSpeed?.turbo) return;
+    showBanner('¡Bienvenidos a Kanto!', '#ef476f');
+    setMode('close');
+    followSeat = null;
+    orbit = null;
+    const start = Math.PI * 0.25;
+    const pose = (a, r, h) => ({ fov: 46, position: new THREE.Vector3(Math.sin(a) * r, h, Math.cos(a) * r), target: new THREE.Vector3(0, 0, 0) });
+    // Un clic sobre el tablero saltea el recorrido.
+    let skip = false;
+    const onSkip = () => {
+      skip = true;
+    };
+    stageEl.addEventListener('pointerdown', onSkip, { once: true });
+    transitioning++;
+    try {
+      await transitionTo(pose(start, 22, 11), 1200);
+      // Vuelta completa alrededor del tablero, acercándose un poco.
+      const t0 = performance.now();
+      await new Promise((resolve) => {
+        const step = () => {
+          const k = Math.min(1, (performance.now() - t0) / 7000);
+          const p = pose(start + k * Math.PI * 2, 22 - k * 4, 11 - k * 3);
+          cam.position.copy(p.position);
+          cam.target.copy(p.target);
+          cam.fov = p.fov;
+          if (k >= 1 || skip || document.hidden) resolve();
+          else requestAnimationFrame(step);
+        };
+        step();
+      });
+    } finally {
+      transitioning--;
+      stageEl.removeEventListener('pointerdown', onSkip);
+    }
+  }
 
   const api = {
     sync(state) {
@@ -200,6 +244,9 @@ async function start() {
       return enqueue(async () => {
         const piece = pieces[seat];
         if (!piece || !lastState) return;
+        // Partida recién empezada: primero el recorrido por el diorama.
+        if (!introDone && lastState.log.length <= 1) await introFlyover();
+        introDone = true;
         const pl = lastState.players[seat];
         // En Pueblo Paleta con 4 medallas no hay bloque: toca el desafío final.
         const finalTurn = pl.pos === 0 && CAT_KEYS.filter((c) => pl.medals[c]).length >= MEDALS_TO_WIN;
@@ -330,9 +377,43 @@ async function start() {
   });
   renderCamBtn();
 
+  // ── Calidad automática ──
+  // Si la PC no llega a ~45 cuadros por segundo, se baja la calidad por pasos:
+  // 1) resolución 1×, 2) sin sombras dinámicas, 3) sin Pokémon decorativos.
+  let qualityLevel = 0;
+  let slowTime = 0;
+  let sampleTime = 0;
+  function adaptQuality(dt) {
+    if (document.hidden || qualityLevel >= 3) return;
+    sampleTime += dt;
+    if (dt > 1 / 45) slowTime += dt;
+    if (sampleTime < 4) return;
+    const slowShare = slowTime / sampleTime;
+    sampleTime = 0;
+    slowTime = 0;
+    if (slowShare < 0.5) return;
+    qualityLevel++;
+    if (qualityLevel === 1) {
+      renderer.setPixelRatio(1);
+      stage.resize();
+    } else if (qualityLevel === 2) {
+      stage.sun.castShadow = false;
+    } else if (qualityLevel === 3) {
+      stage.scenery.setDetail(0);
+    }
+    console.info(`Calidad 3D reducida al nivel ${qualityLevel} para mantener la fluidez.`);
+  }
+
   // ── Bucle de render ──
+  // Tope de 60 cuadros por segundo: en monitores de 120/144 Hz no se gasta GPU
+  // de más (la PC que transmite también está codificando el video).
+  const FRAME_MS = 1000 / 60;
   let last = performance.now();
   function frame(now) {
+    if (now - last < FRAME_MS - 2) {
+      requestAnimationFrame(frame);
+      return;
+    }
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const t = now / 1000;
@@ -343,7 +424,8 @@ async function start() {
       if (!p.busy && p.home) p.root.position.lerp(p.home, 1 - Math.exp(-dt * 8));
     }
     fx.update(dt, camera);
-    stage.scenery.clouds.rotation.y += dt * 0.01;
+    stage.scenery.update(dt, t);
+    adaptQuality(dt);
 
     if (orbit && pieces[orbit.seat]) {
       orbit.angle += dt * 0.35;
@@ -372,6 +454,8 @@ async function start() {
   requestAnimationFrame(frame);
 
   Game.attachView(api);
+  // Edificios y Pokémon decorativos: después del tablero, sin demorar el inicio.
+  stage.scenery.loadExtras().catch((err) => console.warn('No se pudo cargar parte de la escenografía:', err));
 }
 
 start();

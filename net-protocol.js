@@ -9,13 +9,20 @@
  * Dispositivo → espectador
  *   { t:'join', seat, token, name, creature }  ocupar o recuperar un asiento
  *   { t:'leave' }                              liberar el asiento
- *   { t:'act', a:'roll'|'answer'|'choose'|'continue', i?, cat? }
+ *   { t:'act', a:'roll'|'answer'|'choose'|'steal'|'continue', i?, cat?, victim? }
+ *   { t:'ping' }                               latido (cada PING_MS)
  *
  * Espectador → dispositivo
  *   { t:'state', room, you, lobby, game }      foto completa tras cada cambio
  *   { t:'joined', seat }                       asiento confirmado
  *   { t:'kicked' }                             el asiento se abrió en otro dispositivo
  *   { t:'error', msg }                         pedido rechazado (texto para mostrar)
+ *   { t:'pong' }                               respuesta al latido
+ *
+ * Latido: WebRTC puede dejar una conexión «abierta» que ya no transmite (el
+ * celular se bloqueó, cambió de wifi a datos…). Si un lado no oye nada del
+ * otro en DEAD_MS, la da por muerta: el anfitrión libera el asiento y el
+ * dispositivo se reconecta solo.
  *
  * `game` es la vista pública de script.js: nunca incluye la respuesta
  * correcta de una pregunta que todavía no se respondió.
@@ -28,7 +35,12 @@
   // Sin letras confundibles (0/O, 1/I/L).
   const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const CODE_LENGTH = 5;
-  const MAX_MESSAGE_CHARS = 4000;
+  // Lo que manda un dispositivo es chico; la foto de la partida que manda el
+  // anfitrión es más grande (pregunta, explicación, jugadores…).
+  const MAX_DEVICE_CHARS = 4000;
+  const MAX_STATE_CHARS = 200000;
+  const PING_MS = 2000;
+  const DEAD_MS = 8000;
 
   function randomInts(n) {
     const arr = new Uint32Array(n);
@@ -59,11 +71,14 @@
       .join('');
   }
 
-  /** Acepta solo objetos con un tipo de mensaje y de tamaño razonable. */
-  function isMessage(msg) {
+  /**
+   * Acepta solo objetos con un tipo de mensaje y de tamaño razonable.
+   * `fromHost`: mensaje del anfitrión (admite la foto completa de la partida).
+   */
+  function isMessage(msg, fromHost) {
     if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string') return false;
     try {
-      return JSON.stringify(msg).length <= MAX_MESSAGE_CHARS;
+      return JSON.stringify(msg).length <= (fromHost ? MAX_STATE_CHARS : MAX_DEVICE_CHARS);
     } catch {
       return false;
     }
@@ -76,5 +91,5 @@
     return url.toString();
   }
 
-  window.NetProtocol = { ROOM_PREFIX, CODE_LENGTH, newRoomCode, normalizeCode, newToken, isMessage, controlUrl };
+  window.NetProtocol = { ROOM_PREFIX, CODE_LENGTH, PING_MS, DEAD_MS, newRoomCode, normalizeCode, newToken, isMessage, controlUrl };
 })();

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pokémon: Carrera de Medallas</title>
     <meta name="description" content="Juego de mesa de preguntas para 4 jugadores, en una pantalla o desde los celulares." />
-    <link rel="stylesheet" href="styles.css?v=20" />
+    <link rel="stylesheet" href="styles.css?v=29" />
   </head>
   <body>
     <header class="topbar">
@@ -32,7 +32,7 @@
           <h2 id="setupTitle">¡Prepara a tus cuatro Entrenadores Pokémon!</h2>
           <p>
             Recorre Kanto, responde preguntas y consigue las <strong>4 medallas de gimnasio</strong>.
-            Cada <strong>3 aciertos seguidos</strong> ganas una medalla. Con las 4, vuelve a <strong>Pueblo Paleta</strong>
+            Junta <strong>2 aciertos</strong> y la tercera pregunta es por una medalla. Con las 4, vuelve a <strong>Pueblo Paleta</strong>
             y vence el <strong>desafío de la Liga Pokémon</strong>: ¡el primero en lograrlo es Campeón!
           </p>
           <ul class="category-cards" id="categoryCards"></ul>
@@ -100,12 +100,13 @@
                     <div class="dice-side">
                       <button type="button" class="btn btn-primary" id="btnRoll">👊 ¡Golpear el bloque!</button>
                       <span class="dice-result" id="diceResult">Aún sin lanzar</span>
+                      <button type="button" class="btn-takeover" id="btnTakeover" hidden>🎮 Jugar este turno aquí</button>
                     </div>
                   </div>
 
                   <div class="streak" id="streakBox">
                     <div class="streak-pips" id="streakPips"></div>
-                    <span class="streak-text" id="streakText">0 de 3</span>
+                    <span class="streak-text" id="streakText">0 de 2</span>
                   </div>
 
                   <div class="turn-medals" id="turnMedals" aria-label="Medallas del jugador actual"></div>
@@ -200,8 +201,18 @@
     <div class="overlay" id="chooseDialog" hidden>
       <div class="dialog card" role="dialog" aria-modal="true" aria-labelledby="chooseTitle">
         <h2 id="chooseTitle">¡Centro Pokémon!</h2>
-        <p>Elige la categoría de tu pregunta. Cuenta como una pregunta normal para tu racha.</p>
+        <p>Elige la categoría de tu pregunta. Cuenta como una pregunta normal (suma un acierto o es por la medalla).</p>
         <div class="choose-grid" id="chooseGrid"></div>
+        <p class="remote-wait" hidden></p>
+      </div>
+    </div>
+
+    <div class="overlay" id="rocketDialog" hidden>
+      <div class="dialog card rocket-card" role="dialog" aria-modal="true" aria-labelledby="rocketTitle">
+        <div class="info-icon" id="rocketIcon"></div>
+        <h2 id="rocketTitle">¡Team Rocket!</h2>
+        <p id="rocketText"></p>
+        <div class="rocket-grid" id="rocketGrid"></div>
         <p class="remote-wait" hidden></p>
       </div>
     </div>
@@ -257,21 +268,32 @@
           </p>
         </section>
         <section>
-          <h3>🔥 Racha de tres aciertos</h3>
+          <h3>🔥 Dos aciertos y la tercera, por la medalla</h3>
           <p>
-            Cada jugador tiene su propia racha, que se conserva entre turnos. Un acierto suma 1; un error la reinicia a 0.
-            Los aciertos pueden ser de categorías distintas. Al llegar a <strong>3 de 3</strong> ganas la medalla de la
-            categoría de la <strong>tercera</strong> pregunta y la racha vuelve a 0. Si ya tenías esa medalla,
-            <strong>ganas una de las que te faltan</strong>: tres aciertos seguidos nunca se pierden.
+            Cada jugador junta sus aciertos, que se conservan entre turnos. Un acierto suma 1 y
+            <strong>un error no los borra</strong>. Pueden ser de categorías distintas. Con <strong>2 aciertos</strong>,
+            tu próxima pregunta es <strong>por la medalla</strong> de su categoría: si aciertas, la ganas. Acierte o falle,
+            los aciertos vuelven a 0. Si con 2 aciertos caes en una categoría cuya medalla ya tienes,
+            <strong>pierdes el turno</strong> (sin pregunta) y conservas tus aciertos. En el Centro Pokémon solo puedes elegir
+            categorías cuya medalla te falta.
           </p>
         </section>
         <section>
           <h3>🏅 Casillas de medalla directa</h3>
           <p>
             Hay una por categoría (con borde dorado). Al caer en ella respondes una pregunta especial de esa categoría:
-            si aciertas, ganas esa medalla al instante aunque tu racha sea menor que 3; si fallas, no la ganas.
-            <strong>Esta pregunta no suma ni reinicia tu racha.</strong> Si ya tienes esa medalla, se te avisa que no
+            si aciertas, ganas esa medalla al instante sin importar tus aciertos; si fallas, no la ganas.
+            <strong>Esta pregunta no suma ni borra tus aciertos.</strong> Si ya tienes esa medalla, se te avisa que no
             puedes duplicarla y no hay pregunta.
+          </p>
+        </section>
+        <section>
+          <h3>🚀 Team Rocket</h3>
+          <p>
+            Hay 2 casillas del Team Rocket. Si caes en una, eliges a un rival y le robas una medalla que tú no tengas
+            (sale al azar entre las posibles). El rival la defiende con una pregunta de esa categoría: si acierta, la
+            conserva y el Team Rocket sale volando; si falla o se le acaba el tiempo, la medalla es tuya. Si nadie tiene
+            algo que robarte… no pasa nada. Con las 4 medallas ya no robas: corres a Pueblo Paleta.
           </p>
         </section>
         <section>
@@ -359,27 +381,27 @@
     -->
     <script src="vendor/peerjs.min.js"></script>
     <!-- Preguntas: base escrita a mano + bancos generados desde datos de PokeAPI (tools/question-gen/) -->
-    <script src="questions.js?v=20"></script>
-    <script src="questions-tipos.js?v=20"></script>
-    <script src="questions-pokedex.js?v=20"></script>
-    <script src="questions-habilidades.js?v=20"></script>
-    <script src="questions-cambalache.js?v=20"></script>
-    <script src="config.js?v=20"></script>
-    <script src="pokedata.js?v=20"></script>
-    <script src="art.js?v=20"></script>
-    <script src="dom.js?v=20"></script>
-    <script src="sound.js?v=20"></script>
-    <script src="setup.js?v=20"></script>
-    <script src="board.js?v=20"></script>
-    <script src="script.js?v=20"></script>
-    <script src="net-protocol.js?v=20"></script>
-    <script src="net-host.js?v=20"></script>
-    <script src="recording.js?v=20"></script>
-    <script src="tester.js?v=20"></script>
+    <script src="questions.js?v=29"></script>
+    <script src="questions-tipos.js?v=29"></script>
+    <script src="questions-pokedex.js?v=29"></script>
+    <script src="questions-habilidades.js?v=29"></script>
+    <script src="questions-cambalache.js?v=29"></script>
+    <script src="config.js?v=29"></script>
+    <script src="pokedata.js?v=29"></script>
+    <script src="art.js?v=29"></script>
+    <script src="dom.js?v=29"></script>
+    <script src="sound.js?v=29"></script>
+    <script src="setup.js?v=29"></script>
+    <script src="board.js?v=29"></script>
+    <script src="script.js?v=29"></script>
+    <script src="net-protocol.js?v=29"></script>
+    <script src="net-host.js?v=29"></script>
+    <script src="recording.js?v=29"></script>
+    <script src="tester.js?v=29"></script>
 
     <!--
       Tablero 3D: módulo ES (necesita servirse por http/https; abierto como archivo queda el 2D).
-      El "?v=20" de los archivos propios obliga a descargar la versión nueva al publicar
+      El "?v=29" de los archivos propios obliga a descargar la versión nueva al publicar
       cambios: hay que subir ese número (aquí, en los <script> y en control.html) en cada versión.
     -->
     <script type="importmap">
@@ -387,14 +409,16 @@
         "imports": {
           "three": "./vendor/three/three.module.js",
           "three/addons/": "./vendor/three/addons/",
-          "./view3d/tween.js": "./view3d/tween.js?v=20",
-          "./view3d/textures.js": "./view3d/textures.js?v=20",
-          "./view3d/scene.js": "./view3d/scene.js?v=20",
-          "./view3d/pieces.js": "./view3d/pieces.js?v=20",
-          "./view3d/fx.js": "./view3d/fx.js?v=20"
+          "./view3d/tween.js": "./view3d/tween.js?v=29",
+          "./view3d/textures.js": "./view3d/textures.js?v=29",
+          "./view3d/scene.js": "./view3d/scene.js?v=29",
+          "./view3d/pieces.js": "./view3d/pieces.js?v=29",
+          "./view3d/fx.js": "./view3d/fx.js?v=29",
+          "./view3d/scenery.js": "./view3d/scenery.js?v=29",
+          "./view3d/townmodels.js": "./view3d/townmodels.js?v=29"
         }
       }
     </script>
-    <script type="module" src="view3d/view3d.js?v=20"></script>
+    <script type="module" src="view3d/view3d.js?v=29"></script>
   </body>
 </html>

@@ -80,6 +80,7 @@ const TILE_BG = {
   start: '#b2f2bb',
   skip: '#d8c3a5',
   wild: '#eebefa',
+  rocket: '#ffc9c9',
   adv: '#c3fae8',
   back: '#ffe3e3',
   whirl: '#99e9f2',

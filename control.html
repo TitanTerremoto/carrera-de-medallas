@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#ef476f" />
     <title>Control · Pokémon: Carrera de Medallas</title>
     <meta name="description" content="Control del jugador para Carrera de Medallas." />
-    <link rel="stylesheet" href="styles.css?v=20" />
-    <link rel="stylesheet" href="control.css?v=20" />
+    <link rel="stylesheet" href="styles.css?v=29" />
+    <link rel="stylesheet" href="control.css?v=29" />
   </head>
   <body class="control">
     <header class="ctrl-top">
@@ -55,25 +55,21 @@
       </section>
 
       <!-- Partida -->
-      <section class="ctrl-screen" id="scrPlay" hidden>
-        <div class="card ctrl-me-card" id="playMe"></div>
+      <section class="ctrl-screen ctrl-play" id="scrPlay" hidden>
+        <div class="mini-board" id="miniBoard" aria-label="Tablero"></div>
         <div class="card ctrl-action" id="actionCard" aria-live="polite"></div>
-        <details class="card ctrl-scores">
-          <summary>Marcador</summary>
-          <ul class="ctrl-lobby" id="scoreList"></ul>
-        </details>
       </section>
     </main>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="vendor/peerjs.min.js"></script>
-    <script src="config.js?v=20"></script>
-    <script src="pokedata.js?v=20"></script>
-    <script src="art.js?v=20"></script>
-    <script src="dom.js?v=20"></script>
-    <script src="sound.js?v=20"></script>
-    <script src="net-protocol.js?v=20"></script>
-    <script src="control.js?v=20"></script>
+    <script src="config.js?v=29"></script>
+    <script src="pokedata.js?v=29"></script>
+    <script src="art.js?v=29"></script>
+    <script src="dom.js?v=29"></script>
+    <script src="sound.js?v=29"></script>
+    <script src="net-protocol.js?v=29"></script>
+    <script src="control.js?v=29"></script>
   </body>
 </html>

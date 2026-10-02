@@ -2,7 +2,7 @@
  * Carrera de Medallas — lógica principal del juego.
  *
  * Modelo de estado (todo vive en `state` y se guarda en localStorage):
- *   players[]  → nombre, ficha, color, posición, racha, medallas, pierde turno
+ *   players[]  → nombre, ficha, color, posición, aciertos (streak), medallas, pierde turno
  *   current    → índice del jugador en turno
  *   phase      → 'idle' (puede lanzar) · 'busy' (resolviendo un evento) · 'over'
  *   pending    → el evento en curso. Se guarda para que, si se recarga la
@@ -22,10 +22,10 @@
   'use strict';
 
   const { $, el, delay, openOverlay, closeOverlay, closeAllOverlays, toast, confirmDialog, isOpen } = window.Dom;
-  const { CATS, CAT_KEYS, QUESTION_KEYS, LEAGUE_KEY, STREAK_GOAL, ANSWER_SECONDS, MEDALS_TO_WIN, DICE_MAX, SAVE_KEY, BOARD_LAYOUT, BOARD_SIZE } = window.GameConfig;
+  const { CATS, CAT_KEYS, QUESTION_KEYS, LEAGUE_KEY, HITS_FOR_MEDAL, ANSWER_SECONDS, MEDALS_TO_WIN, DICE_MAX, SAVE_KEY, BOARD_LAYOUT, BOARD_SIZE } = window.GameConfig;
   const ANSWER_MS = ANSWER_SECONDS * 1000;
   // Ventanas del juego que se muestran dentro del área de juego (no sobre toda la página).
-  const IN_BOARD_DIALOGS = ['questionDialog', 'infoDialog', 'chooseDialog', 'medalDialog', 'victoryDialog'];
+  const IN_BOARD_DIALOGS = ['questionDialog', 'infoDialog', 'chooseDialog', 'rocketDialog', 'medalDialog', 'victoryDialog'];
   const { creatureIcon, categoryIcon, medalIcon, artIcon, pokemonIcon, typeIcons } = window.GameArt;
   const Poke = window.PokeData;
   const Board = window.GameBoard;
@@ -49,7 +49,19 @@
    * conectado, y entonces solo ese dispositivo puede mover ese asiento.
    */
   let isRemoteSeat = () => false;
-  const hostMayAct = () => !!state && (state.phase === 'over' || !isRemoteSeat(state.current));
+  /*
+   * Si un dispositivo no responde (se quedó sin batería, sin señal…), la
+   * pantalla principal puede jugar ese turno: «Jugar este turno aquí».
+   * Vale hasta que termina el turno.
+   */
+  let takeoverSeat = null;
+  const lockedRemote = (seat) => isRemoteSeat(seat) && takeoverSeat !== seat;
+  /** Quién actúa ahora: la víctima si responde una defensa; si no, el jugador en turno. */
+  const actingSeat = () => {
+    const pd = state && state.pending;
+    return pd && pd.type === 'question' && pd.answerer != null ? pd.answerer : state.current;
+  };
+  const hostMayAct = () => !!state && (state.phase === 'over' || !lockedRemote(actingSeat()));
   const listeners = [];
   let notifyQueued = false;
 
@@ -265,13 +277,20 @@
     });
   }
 
+  /*
+   * Aciertos: `p.streak` cuenta de 0 a HITS_FOR_MEDAL. Los errores no lo
+   * borran; con HITS_FOR_MEDAL aciertos, la próxima pregunta normal es «por la
+   * medalla» y, acierte o falle, el contador vuelve a 0.
+   */
+  const readyForMedal = (p) => p.streak >= HITS_FOR_MEDAL;
+
   function streakText(streak) {
-    if (streak >= STREAK_GOAL - 1) return `${streak} de ${STREAK_GOAL} · ¡Próximo acierto: medalla de la categoría de la pregunta!`;
-    return `${streak} de ${STREAK_GOAL}`;
+    if (streak >= HITS_FOR_MEDAL) return `${HITS_FOR_MEDAL} de ${HITS_FOR_MEDAL} · ¡Tu próxima pregunta es por la medalla!`;
+    return `${streak} de ${HITS_FOR_MEDAL}`;
   }
 
   function streakPips(streak) {
-    return Array.from({ length: STREAK_GOAL }, (_, i) => el('span', { class: `pip-streak ${i < streak ? 'on' : ''}` }));
+    return Array.from({ length: HITS_FOR_MEDAL }, (_, i) => el('span', { class: `pip-streak ${i < streak ? 'on' : ''}` }));
   }
 
   function renderTurnPanel() {
@@ -282,8 +301,8 @@
     $('turnName').textContent = p.name;
     $('diceResult').textContent = state.lastRoll ? `Último dado: ${state.lastRoll}` : 'Aún sin lanzar';
     $('streakPips').replaceChildren(...streakPips(p.streak));
-    $('streakText').textContent = `Racha: ${streakText(p.streak)}`;
-    $('streakBox').classList.toggle('hot', p.streak >= STREAK_GOAL - 1);
+    $('streakText').textContent = `Aciertos: ${streakText(p.streak)}`;
+    $('streakBox').classList.toggle('hot', readyForMedal(p));
     $('turnMedals').replaceChildren(
       ...CAT_KEYS.map((c) =>
         el('div', { class: `turn-medal ${p.medals[c] ? 'owned' : ''}`, attrs: { title: CATS[c].name } }, [
@@ -292,7 +311,7 @@
         ]),
       ),
     );
-    const remote = isRemoteSeat(state.current);
+    const remote = lockedRemote(state.current);
     const canRoll = state.phase === 'idle' && !busy && !remote;
     $('btnRoll').disabled = !canRoll;
     let label = '⏳ Resolviendo…';
@@ -301,6 +320,7 @@
     else if (canRoll) label = atFinal(cur()) ? '🏆 ¡Desafío de la Liga!' : '👊 ¡Golpear el bloque!';
     $('btnRoll').textContent = label;
     Board.setDiceCycling(state.phase === 'idle' && !busy && !atFinal(cur()));
+    applyLocks();
     notify();
   }
 
@@ -311,7 +331,7 @@
           tokenNode(p),
           el('div', { class: 'player-info' }, [
             el('strong', { class: 'player-name', text: p.name }),
-            el('span', { class: 'player-meta', text: `Racha ${p.streak}/${STREAK_GOAL} · ${medalCount(p)}/${MEDALS_TO_WIN} medallas` }),
+            el('span', { class: 'player-meta', text: `${readyForMedal(p) ? '🏅 Por la medalla' : `Aciertos ${p.streak}/${HITS_FOR_MEDAL}`} · ${medalCount(p)}/${MEDALS_TO_WIN} medallas` }),
             p.skipNext ? el('span', { class: 'player-flag', text: 'Pierde el próximo turno' }) : null,
             isRacing(p) ? el('span', { class: 'player-flag race', text: atFinal(p) ? '🏆 Desafío de la Liga' : '🏁 Rumbo a Pueblo Paleta' }) : null,
           ]),
@@ -366,16 +386,30 @@
     const pd = state.pending;
     document.body.classList.toggle('remote-turn', remote);
     document.querySelectorAll('.remote-wait').forEach((n) => {
-      n.textContent = remote ? `📱 ${cur().name} juega desde su dispositivo…` : '';
+      n.replaceChildren(
+        ...(remote
+          ? [`📱 Juega ${state.players[actingSeat()].name} desde su dispositivo… `, el('button', { class: 'btn-takeover', text: '🎮 Jugar aquí', attrs: { type: 'button' }, on: { click: takeOver } })]
+          : []),
+      );
       n.hidden = !remote;
     });
+    $('btnTakeover').hidden = !remote || state.phase !== 'idle';
     document.querySelectorAll('#qOptions .q-option').forEach((b) => {
       b.disabled = remote || !pd || pd.type !== 'question' || pd.answered;
     });
-    document.querySelectorAll('#chooseGrid .choose-btn').forEach((b) => {
-      b.disabled = remote;
+    document.querySelectorAll('#chooseGrid .choose-btn, #rocketGrid .rocket-btn').forEach((b) => {
+      b.disabled = remote || b.dataset.blocked === '1';
     });
     for (const id of ['btnQContinue', 'btnInfoOk', 'btnMedalOk']) $(id).disabled = remote;
+  }
+
+  /** La pantalla principal toma el turno de un dispositivo que no responde. */
+  function takeOver() {
+    if (!state || state.phase === 'over' || !lockedRemote(actingSeat())) return;
+    takeoverSeat = actingSeat();
+    addLog(`🎮 El turno de ${state.players[takeoverSeat].name} se juega desde la pantalla principal.`, takeoverSeat);
+    renderTurnPanel();
+    applyLocks();
   }
 
   // ═════════════════════ Flujo del turno ═════════════════════
@@ -434,6 +468,8 @@
         return showQuestion();
       case 'choose':
         return showChooser();
+      case 'rocket':
+        return showRocket();
       case 'info':
         return showInfo();
       case 'medal':
@@ -496,6 +532,16 @@
     switch (sq.type) {
       case 'question':
         addLog(`${p.name} cae en ${CATS[sq.cat].name}.`, state.current);
+        if (readyForMedal(p) && p.medals[sq.cat]) {
+          // Con la pregunta por la medalla pendiente, una categoría ya ganada no sirve:
+          // pierde el turno (sin pregunta) y conserva sus aciertos.
+          addLog(`${p.name} ya tiene la Medalla de ${CATS[sq.cat].name}: pierde el turno.`, state.current);
+          return setInfo(
+            'Pierdes el turno',
+            `${p.name} tenía la pregunta por la medalla, pero ya tiene la Medalla de ${CATS[sq.cat].name}. Pierde este turno y conserva sus ${HITS_FOR_MEDAL} aciertos para la próxima.`,
+            { medal: sq.cat },
+          );
+        }
         return openQuestion(sq.cat, 'normal');
 
       case 'medal':
@@ -529,6 +575,21 @@
         addLog(`${p.name} se pierde en el Monte Moon.`, state.current);
         return setInfo('Monte Moon', `¡Una bandada de Zubat! ${p.name} se pierde en la cueva y pierde su próximo turno.`, { art: 'zubat' });
 
+      case 'rocket': {
+        addLog(`🚀 ${p.name} cae en la casilla del Team Rocket.`, state.current);
+        const options = stealOptions(state.current);
+        if (!options.length) {
+          return setInfo(
+            'Team Rocket',
+            `«¡Prepárense para los problemas!»… pero ningún rival tiene una medalla que ${p.name} no tenga. No hay nada que robar.`,
+            { art: 'meowth' },
+          );
+        }
+        state.pending = { type: 'rocket', options };
+        saveGame();
+        return showRocket();
+      }
+
       case 'wild':
         addLog(`${p.name} llega al Centro Pokémon.`, state.current);
         state.pending = { type: 'choose' };
@@ -559,6 +620,7 @@
     state.current = next;
     state.phase = 'idle';
     busy = false;
+    takeoverSeat = null;
     saveGame();
     renderAll();
     pulseTurn();
@@ -598,14 +660,24 @@
     endTurn();
   }
 
+  /** Categorías elegibles en el Centro Pokémon (con la pregunta por la medalla, solo las que faltan). */
+  const choosableCats = (p) => CAT_KEYS.filter((c) => !(readyForMedal(p) && p.medals[c]));
+
   function showChooser() {
     renderAll();
+    const allowed = choosableCats(cur());
     $('chooseGrid').replaceChildren(
       ...CAT_KEYS.map((c) =>
-        el('button', { class: 'choose-btn', attrs: { type: 'button' }, style: { '--cat': CATS[c].color }, on: { click: () => hostMayAct() && chooseCategory(c) } }, [
-          categoryIcon(c),
-          el('span', { text: CATS[c].name }),
-        ]),
+        el(
+          'button',
+          {
+            class: 'choose-btn',
+            attrs: { type: 'button', 'data-blocked': allowed.includes(c) ? null : '1', title: allowed.includes(c) ? null : 'Ya tienes esta medalla' },
+            style: { '--cat': CATS[c].color },
+            on: { click: () => hostMayAct() && chooseCategory(c) },
+          },
+          [categoryIcon(c), el('span', { text: CATS[c].name })],
+        ),
       ),
     );
     applyLocks();
@@ -613,26 +685,75 @@
   }
 
   function chooseCategory(cat) {
-    if (!state || state.pending?.type !== 'choose') return;
+    if (!state || state.pending?.type !== 'choose' || !choosableCats(cur()).includes(cat)) return;
     closeOverlay('chooseDialog');
     addLog(`${cur().name} elige ${CATS[cat].name}.`, state.current);
     openQuestion(cat, 'normal');
   }
 
+  // ═════════════════════ Team Rocket ═════════════════════
+
+  /** Rivales a los que el ladrón puede robar: medallas que el rival tiene y él no. */
+  function stealOptions(thiefSeat) {
+    const thief = state.players[thiefSeat];
+    return state.players
+      .map((v, seat) => ({ seat, cats: CAT_KEYS.filter((c) => v.medals[c] && !thief.medals[c]) }))
+      .filter((o) => o.seat !== thiefSeat && o.cats.length);
+  }
+
+  function showRocket() {
+    const pd = state.pending;
+    const thief = cur();
+    renderAll();
+    $('rocketIcon').replaceChildren(artIcon('meowth'));
+    $('rocketText').textContent = `«¡Prepárense para los problemas!» ${thief.name}, elige a qué rival robarle una medalla. Podrá defenderla con una pregunta.`;
+    $('rocketGrid').replaceChildren(
+      ...pd.options.map((o) => {
+        const v = state.players[o.seat];
+        return el('button', { class: 'rocket-btn', attrs: { type: 'button' }, style: { '--pc': v.color }, on: { click: () => hostMayAct() && chooseVictim(o.seat) } }, [
+          tokenNode(v),
+          el('span', { class: 'rocket-name', text: v.name }),
+          el('span', { class: 'rocket-medals' }, o.cats.map((c) => medalIcon(c))),
+        ]);
+      }),
+    );
+    Sound.play('special');
+    applyLocks();
+    openOverlay('rocketDialog');
+  }
+
+  /** El ladrón eligió víctima: sale al azar una medalla robable y la víctima la defiende. */
+  function chooseVictim(seat) {
+    const pd = state && state.pending;
+    if (!pd || pd.type !== 'rocket') return;
+    const option = pd.options.find((o) => o.seat === seat);
+    if (!option) return;
+    const cat = randomOf(option.cats);
+    closeOverlay('rocketDialog');
+    addLog(`🚀 ${cur().name} intenta robarle la Medalla de ${CATS[cat].name} a ${state.players[seat].name}.`, state.current);
+    openQuestion(cat, 'defense', { answerer: seat, thief: state.current });
+  }
+
   // ═════════════════════ Preguntas ═════════════════════
 
-  function openQuestion(cat, mode) {
+  /**
+   * Abre una pregunta. `extra` permite que responda otro jugador (defensa del
+   * Team Rocket: { answerer, thief }).
+   */
+  function openQuestion(cat, mode, extra) {
     const qi = drawQuestion(cat);
     state.pending = {
       type: 'question',
       cat,
-      mode, // 'normal' suma a la racha · 'medal' medalla directa · 'final' desafío final
+      mode, // 'normal' suma aciertos (o es «por la medalla») · 'medal' medalla directa · 'final' desafío final · 'defense' Team Rocket
+      forMedal: mode === 'normal' && readyForMedal(cur()), // pregunta por la medalla tras juntar los aciertos
       qi,
       order: shuffle([0, 1, 2, 3]), // 0 = correcta, 1..3 = incorrectas
       answered: false,
       chosen: null,
       outcome: null,
       deadline: Date.now() + ANSWER_MS, // se responde dentro de ANSWER_SECONDS
+      ...(extra || {}),
     };
     saveGame();
     showQuestion();
@@ -644,28 +765,32 @@
 
   function renderQuestionStreak(pd, p) {
     const box = $('qStreak');
-    if (pd.mode === 'final') {
+    if (pd.mode === 'defense') {
+      box.replaceChildren(el('span', { class: 'q-streak-text', text: `🛡 ${p.name} defiende su Medalla de ${CATS[pd.cat].name}: si acierta, la conserva; si falla, se la lleva ${state.players[pd.thief].name}.` }));
+    } else if (pd.mode === 'final') {
       box.replaceChildren(el('span', { class: 'q-streak-text', text: '🏆 Desafío de la Liga Pokémon: si aciertas, ¡eres Campeón! Si fallas, vuelves a intentarlo en tu próximo turno.' }));
     } else if (pd.mode === 'medal') {
       box.replaceChildren(
-        el('span', { class: 'q-streak-text', text: `Pregunta especial: si aciertas ganas la Medalla de ${CATS[pd.cat].name}. No suma ni reinicia tu racha (${p.streak} de ${STREAK_GOAL}).` }),
+        el('span', { class: 'q-streak-text', text: `Pregunta especial: si aciertas ganas la Medalla de ${CATS[pd.cat].name}. No cambia tus aciertos (${p.streak} de ${HITS_FOR_MEDAL}).` }),
       );
+    } else if (pd.forMedal) {
+      box.replaceChildren(el('span', { class: 'q-streak-text', text: `🏅 Pregunta por la medalla: si aciertas, ganas la Medalla de ${CATS[pd.cat].name}. Acierte o falle, tus aciertos vuelven a 0.` }));
     } else {
-      box.replaceChildren(el('span', { class: 'streak-pips' }, streakPips(p.streak)), el('span', { class: 'q-streak-text', text: `Racha: ${streakText(p.streak)}` }));
+      box.replaceChildren(el('span', { class: 'streak-pips' }, streakPips(p.streak)), el('span', { class: 'q-streak-text', text: `Aciertos: ${streakText(p.streak)} · un error no los borra.` }));
     }
   }
 
   function showQuestion() {
     const pd = state.pending;
     const q = BANK[pd.cat][pd.qi];
-    const p = cur();
+    const p = state.players[actingSeat()]; // quien responde (la víctima, en una defensa)
     const cat = CATS[pd.cat];
     renderAll();
 
     $('questionDialog').style.setProperty('--cat', cat.color);
     $('questionDialog').classList.toggle('q-medal-mode', pd.mode !== 'normal');
-    $('qIcon').replaceChildren(pd.mode === 'medal' ? medalIcon(pd.cat) : categoryIcon(pd.cat));
-    $('qMode').textContent = { medal: '🏅 Casilla de medalla directa', final: '🏆 Desafío final' }[pd.mode] || 'Pregunta';
+    $('qIcon').replaceChildren(pd.mode === 'medal' || pd.mode === 'defense' ? medalIcon(pd.cat) : categoryIcon(pd.cat));
+    $('qMode').textContent = pd.forMedal ? '🏅 ¡Pregunta por la medalla!' : { medal: '🏅 Casilla de medalla directa', final: '🏆 Desafío final', defense: '🚀 ¡Ataque del Team Rocket!' }[pd.mode] || 'Pregunta';
     $('qCat').textContent = pd.cat === 'habilidades' ? 'Habilidades y movimientos' : cat.name;
     $('qPlayer').replaceChildren(tokenNode(p), el('span', { text: p.name }));
     $('qText').textContent = q.q;
@@ -725,56 +850,64 @@
     pd.answered = true;
     pd.chosen = i;
 
-    const p = cur();
+    const seat = actingSeat();
+    const p = state.players[seat];
     const timeout = i === null;
     const correct = !timeout && pd.order[i] === 0;
     const outcome = { correct, timeout, medal: null, streakBefore: p.streak, streakAfter: p.streak, won: false };
     const catName = CATS[pd.cat].name;
 
     if (pd.mode === 'normal') {
-      if (correct) {
-        p.streak += 1;
-        if (p.streak >= STREAK_GOAL) {
-          // La racha se consume siempre. Si la medalla ya estaba, se gana
-          // una de las que faltan (los tres aciertos nunca se pierden).
-          p.streak = 0;
-          if (!p.medals[pd.cat]) {
-            outcome.medal = 'new';
-            outcome.cat = pd.cat;
-          } else {
-            const missing = CAT_KEYS.filter((c) => !p.medals[c]);
-            if (missing.length) {
-              outcome.medal = 'new';
-              outcome.cat = randomOf(missing);
-              outcome.repeatOf = pd.cat;
-            } else {
-              outcome.medal = 'repeat';
-            }
-          }
-          if (outcome.medal === 'new') p.medals[outcome.cat] = true;
-        }
-      } else {
+      if (pd.forMedal) {
+        // Pregunta por la medalla: los aciertos se consumen siempre. Nunca es
+        // de una medalla ya ganada (en ese caso se pierde el turno antes).
         p.streak = 0;
+        if (correct && !p.medals[pd.cat]) {
+          p.medals[pd.cat] = true;
+          outcome.medal = 'new';
+          outcome.cat = pd.cat;
+        }
+      } else if (correct) {
+        p.streak = Math.min(p.streak + 1, HITS_FOR_MEDAL); // un error no borra los aciertos
       }
     } else if (pd.mode === 'medal' && correct && !p.medals[pd.cat]) {
-      // Medalla directa: no toca la racha.
+      // Medalla directa: no toca los aciertos.
       p.medals[pd.cat] = true;
       outcome.medal = 'new';
       outcome.cat = pd.cat;
     } else if (pd.mode === 'final' && correct) {
       outcome.won = true;
+    } else if (pd.mode === 'defense') {
+      // Defensa del Team Rocket: no toca los aciertos. Si falla, la medalla cambia de dueño.
+      const thief = state.players[pd.thief];
+      if (correct) outcome.defended = true;
+      else {
+        p.medals[pd.cat] = false;
+        thief.medals[pd.cat] = true;
+        outcome.stolen = true;
+        outcome.cat = pd.cat;
+      }
     }
     outcome.streakAfter = p.streak;
-    outcome.reachedGoal = outcome.medal === 'new' && medalCount(p) === MEDALS_TO_WIN;
+    outcome.reachedGoal =
+      pd.mode === 'defense'
+        ? !!outcome.stolen && medalCount(state.players[pd.thief]) === MEDALS_TO_WIN
+        : outcome.medal === 'new' && medalCount(p) === MEDALS_TO_WIN;
     pd.outcome = outcome;
 
-    addLog(`${p.name} ${correct ? 'acierta' : 'falla'} (${catName}${pd.mode === 'final' ? ', desafío final' : ''}).`, state.current);
-    if (outcome.medal === 'new') addLog(`🏅 ${p.name} gana la ${CATS[outcome.cat].badgeName} (${CATS[outcome.cat].name}).`, state.current);
-    if (outcome.reachedGoal) addLog(`🏁 ${p.name} tiene ${MEDALS_TO_WIN} medallas: ¡a Pueblo Paleta!`, state.current);
+    addLog(`${p.name} ${correct ? 'acierta' : 'falla'} (${catName}${pd.mode === 'final' ? ', desafío final' : pd.mode === 'defense' ? ', defensa' : ''}).`, seat);
+    if (outcome.medal === 'new') addLog(`🏅 ${p.name} gana la ${CATS[outcome.cat].badgeName} (${CATS[outcome.cat].name}).`, seat);
+    if (outcome.defended) addLog(`🛡 ${p.name} defiende su Medalla de ${catName}. ¡El Team Rocket sale volando!`, seat);
+    if (outcome.stolen) addLog(`🚀 ${state.players[pd.thief].name} le roba la Medalla de ${catName} a ${p.name}.`, pd.thief);
+    if (outcome.reachedGoal) {
+      const who = pd.mode === 'defense' ? pd.thief : seat;
+      addLog(`🏁 ${state.players[who].name} tiene ${MEDALS_TO_WIN} medallas: ¡a Pueblo Paleta!`, who);
+    }
 
     Sound.play(correct ? 'correct' : 'wrong');
-    if (outcome.medal === 'new') setTimeout(() => Sound.play('medal'), 350);
-    view().react(state.current, { correct, medal: outcome.medal === 'new' ? outcome.cat : null });
+    if (outcome.medal === 'new' || outcome.stolen) setTimeout(() => Sound.play('medal'), 350);
+    view().react(seat, { correct, medal: outcome.medal === 'new' ? outcome.cat : null });
+    if (outcome.stolen && view().steal) view().steal(seat, pd.thief, pd.cat);
 
     if (outcome.won) {
       // Desafío final superado: victoria inmediata.
@@ -790,20 +923,27 @@
     const o = pd.outcome;
     const catName = CATS[pd.cat].name;
     const goal = o.reachedGoal ? ` ¡Ya tienes las ${MEDALS_TO_WIN} medallas: corre a Pueblo Paleta para el desafío de la Liga Pokémon!` : '';
+    if (pd.mode === 'defense') {
+      const victim = state.players[pd.answerer].name;
+      const thief = state.players[pd.thief].name;
+      if (o.correct) return `¡${victim} defendió su Medalla de ${catName}! ¡El Team Rocket sale volando otra vez!`;
+      return `¡El Team Rocket se lleva la Medalla de ${catName} de ${victim} para ${thief}!${o.reachedGoal ? ` ¡${thief} ya tiene las ${MEDALS_TO_WIN} medallas: a Pueblo Paleta!` : ''}`;
+    }
     if (pd.mode === 'final') {
       return o.correct ? '¡Venciste el desafío de la Liga Pokémon! ¡Eres el nuevo Campeón!' : 'La Liga te espera: en tu próximo turno respondes otro desafío desde Pueblo Paleta.';
     }
     if (pd.mode === 'medal') {
-      if (o.medal === 'new') return `¡Ganas directamente la Medalla de ${catName}! Tu racha no cambia (${o.streakAfter} de ${STREAK_GOAL}).${goal}`;
-      return `No ganas la medalla esta vez. Tu racha no cambia (${o.streakAfter} de ${STREAK_GOAL}).`;
+      if (o.medal === 'new') return `¡Ganas directamente la Medalla de ${catName}! Tus aciertos no cambian (${o.streakAfter} de ${HITS_FOR_MEDAL}).${goal}`;
+      return `No ganas la medalla esta vez. Tus aciertos no cambian (${o.streakAfter} de ${HITS_FOR_MEDAL}).`;
     }
-    if (!o.correct) return o.streakBefore > 0 ? `Perdiste tu racha de ${o.streakBefore}. Vuelve a 0 de ${STREAK_GOAL}.` : `Tu racha sigue en 0 de ${STREAK_GOAL}.`;
-    if (o.medal === 'new' && o.repeatOf) {
-      return `¡Tres aciertos seguidos! Ya tenías la Medalla de ${CATS[o.repeatOf].name}, así que ganas una que te faltaba: la de ${CATS[o.cat].name}. Tu racha vuelve a 0.${goal}`;
+    if (pd.forMedal) {
+      if (!o.correct) return `¡Se escapó la medalla! Tus aciertos vuelven a 0 de ${HITS_FOR_MEDAL}.`;
+      if (o.medal === 'new') return `¡Ganas la Medalla de ${catName}! Tus aciertos vuelven a 0.${goal}`;
+      return `Ya tenías la Medalla de ${catName}. Tus aciertos vuelven a 0.`;
     }
-    if (o.medal === 'new') return `¡Tres aciertos seguidos! Ganas la Medalla de ${catName}. Tu racha vuelve a 0.${goal}`;
-    if (o.medal === 'repeat') return `¡Tres aciertos seguidos! Ya tienes todas las medallas. Tu racha vuelve a 0.`;
-    return `Racha: ${streakText(o.streakAfter)}`;
+    if (!o.correct) return `Fallaste, pero conservas tus aciertos (${o.streakAfter} de ${HITS_FOR_MEDAL}).`;
+    if (o.streakAfter >= HITS_FOR_MEDAL) return `¡${HITS_FOR_MEDAL} de ${HITS_FOR_MEDAL}! Tu próxima pregunta es por la medalla.`;
+    return `Aciertos: ${streakText(o.streakAfter)}`;
   }
 
   /** Muestra la corrección: elegida, correcta, explicación y resultado. */
@@ -819,7 +959,7 @@
       btn.classList.toggle('wrong', i === pd.chosen && !isRight);
       if (isRight) btn.setAttribute('aria-label', `${btn.textContent} (respuesta correcta)`);
     });
-    renderQuestionStreak(pd, cur());
+    renderQuestionStreak(pd, state.players[actingSeat()]);
     $('qVerdict').textContent = o.correct ? '✔ ¡Correcto!' : o.timeout ? `⏰ ¡Se acabó el tiempo! La respuesta era: ${q.correct}` : `✘ Incorrecto. La respuesta era: ${q.correct}`;
     $('qTimer').hidden = true;
     $('qVerdict').className = o.correct ? 'ok' : 'bad';
@@ -828,7 +968,7 @@
     const reveal = Poke.exactPokemon(q.correct);
     $('qReveal').replaceChildren(...(reveal ? [pokemonIcon(Poke.POKEMON[reveal], 'q-reveal-img')] : []));
     $('qOutcome').textContent = outcomeMessage(pd);
-    $('qOutcome').classList.toggle('medal-line', !!o.medal || !!o.won);
+    $('qOutcome').classList.toggle('medal-line', !!o.medal || !!o.won || !!o.stolen || !!o.defended);
     $('btnQContinue').textContent = o.won ? '🏆 Ver celebración' : 'Continuar ➜';
     $('qFeedback').hidden = false;
     $('questionDialog').querySelector('.question-card').classList.add('q-answered');
@@ -845,6 +985,12 @@
     const pd = state.pending;
     if (!pd || pd.type !== 'question' || !pd.answered) return;
     closeOverlay('questionDialog');
+    if (pd.outcome.stolen) {
+      // La medalla robada se celebra como medalla nueva del ladrón (jugador en turno).
+      state.pending = { type: 'medal', cat: pd.cat, from: pd.answerer };
+      saveGame();
+      return showMedal();
+    }
     if (pd.outcome.medal === 'new') {
       state.pending = { type: 'medal', cat: pd.outcome.cat || pd.cat };
       saveGame();
@@ -858,10 +1004,11 @@
     const p = cur();
     renderAll();
     $('medalBig').replaceChildren(medalIcon(pd.cat));
-    $('medalTitle').textContent = `¡${CATS[pd.cat].badgeName}!`;
-    $('medalText').textContent = isRacing(p)
+    $('medalTitle').textContent = pd.from != null ? `¡${CATS[pd.cat].badgeName} robada!` : `¡${CATS[pd.cat].badgeName}!`;
+    const stolenFrom = pd.from != null ? `El Team Rocket se la quitó a ${state.players[pd.from].name}. ` : '';
+    $('medalText').textContent = stolenFrom + (isRacing(p)
       ? `Medalla de ${CATS[pd.cat].name}. ¡${p.name} tiene las ${MEDALS_TO_WIN} medallas! Ahora debe volver a Pueblo Paleta y vencer el desafío de la Liga Pokémon.`
-      : `Medalla de ${CATS[pd.cat].name}. ${p.name} tiene ${medalCount(p)} de las ${MEDALS_TO_WIN} que necesita.`;
+      : `Medalla de ${CATS[pd.cat].name}. ${p.name} tiene ${medalCount(p)} de las ${MEDALS_TO_WIN} que necesita.`);
     Sound.cry(p.creature);
     openOverlay('medalDialog');
   }
@@ -983,7 +1130,7 @@
 
   async function onRestartClick() {
     if (!state) return;
-    const ok = await confirmDialog('¿Reiniciar la partida?', 'Se perderán el progreso, las rachas y las medallas de todos. Los jugadores se mantienen.', 'Sí, reiniciar');
+    const ok = await confirmDialog('¿Reiniciar la partida?', 'Se perderán el progreso, los aciertos y las medallas de todos. Los jugadores se mantienen.', 'Sí, reiniciar');
     if (ok) startNewGame(playersConfig());
   }
 
@@ -1026,6 +1173,7 @@
     // Botones de esta pantalla: solo actúan si el turno no es de un dispositivo remoto.
     const local = (fn) => () => hostMayAct() && fn();
     $('btnRoll').addEventListener('click', local(rollDice));
+    $('btnTakeover').addEventListener('click', takeOver);
     $('btnQContinue').addEventListener('click', local(onQuestionContinue));
     $('btnInfoOk').addEventListener('click', local(onInfoOk));
     $('btnMedalOk').addEventListener('click', local(onMedalOk));
@@ -1072,8 +1220,16 @@
    * actual admite; cualquier otra cosa se ignora. Devuelve si se aceptó.
    */
   function act(seat, action) {
-    if (!state || !action || seat !== state.current) return false;
+    if (!state || !action) return false;
     const pd = state.pending;
+    // Responde quien defiende (si hay defensa); continuar puede el jugador en
+    // turno o quien respondió; todo lo demás, solo el jugador en turno.
+    const answerSeat = actingSeat();
+    const allowed =
+      action.type === 'answer' ? seat === answerSeat
+        : action.type === 'continue' ? seat === state.current || seat === answerSeat
+          : seat === state.current;
+    if (!allowed) return false;
     if (state.phase === 'over') {
       // Solo queda pasar de la corrección a la celebración.
       if (action.type === 'continue' && seat === state.winner && isOpen('questionDialog')) {
@@ -1093,8 +1249,12 @@
         answerQuestion(action.i);
         return true;
       case 'choose':
-        if (!pd || pd.type !== 'choose' || !CAT_KEYS.includes(action.cat)) return false;
+        if (!pd || pd.type !== 'choose' || !choosableCats(cur()).includes(action.cat)) return false;
         chooseCategory(action.cat);
+        return true;
+      case 'steal':
+        if (!pd || pd.type !== 'rocket' || !pd.options.some((o) => o.seat === action.victim)) return false;
+        chooseVictim(action.victim);
         return true;
       case 'continue':
         if (pd?.type === 'question' && pd.answered) onQuestionContinue();
@@ -1125,6 +1285,9 @@
         art: Poke.findPokemon(q.q).slice(0, 3).map((n) => Poke.pokemonArt(n)),
         answered: pd.answered,
         chosen: pd.chosen,
+        answerer: pd.answerer ?? null, // defensa: responde la víctima
+        forMedal: !!pd.forMedal,
+        thief: pd.thief ?? null,
         // Tiempo restante (no la hora absoluta: los relojes de los dispositivos difieren).
         timeLeftMs: !pd.answered && pd.deadline ? Math.max(0, pd.deadline - Date.now()) : null,
       };
@@ -1134,13 +1297,21 @@
           revealArt: reveal ? Poke.pokemonArt(reveal) : null,
           correct: pd.order.indexOf(0),
           explain: q.explain || '',
-          outcome: { correct: pd.outcome.correct, timeout: !!pd.outcome.timeout, medal: pd.outcome.medal, won: pd.outcome.won, message: outcomeMessage(pd) },
+          outcome: {
+            correct: pd.outcome.correct,
+            timeout: !!pd.outcome.timeout,
+            medal: pd.outcome.medal,
+            won: pd.outcome.won,
+            stolen: !!pd.outcome.stolen,
+            message: outcomeMessage(pd),
+          },
         });
       }
       return view;
     }
     if (pd.type === 'info') return { type: 'info', title: pd.title, text: pd.text };
-    if (pd.type === 'medal') return { type: 'medal', cat: pd.cat };
+    if (pd.type === 'rocket') return { type: 'rocket', options: pd.options.map((o) => ({ seat: o.seat, cats: [...o.cats] })) };
+    if (pd.type === 'medal') return { type: 'medal', cat: pd.cat, from: pd.from ?? null };
     return { type: pd.type };
   }
 

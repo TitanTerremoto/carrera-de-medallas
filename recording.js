@@ -9,7 +9,7 @@
   'use strict';
 
   const { $, el } = window.Dom;
-  const { CATS, CAT_KEYS, STREAK_GOAL } = window.GameConfig;
+  const { CATS, CAT_KEYS, HITS_FOR_MEDAL } = window.GameConfig;
   const { creatureIcon, medalIcon } = window.GameArt;
   const Game = window.CarreraDeMedallas;
   const Board = window.GameBoard;
@@ -71,8 +71,8 @@
           el('strong', { class: 'cam-name', text: p.name }),
           el(
             'span',
-            { class: 'cam-streak', attrs: { title: `Racha ${p.streak} de ${STREAK_GOAL}` } },
-            Array.from({ length: STREAK_GOAL }, (_, k) => el('span', { class: `pip-streak ${k < p.streak ? 'on' : ''}` })),
+            { class: 'cam-streak', attrs: { title: `Aciertos ${p.streak} de ${HITS_FOR_MEDAL}` } },
+            Array.from({ length: HITS_FOR_MEDAL }, (_, k) => el('span', { class: `pip-streak ${k < p.streak ? 'on' : ''}` })),
           ),
         ]),
         el(

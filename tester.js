@@ -3,7 +3,7 @@
  *
  * Usan exactamente las mismas acciones que un celular (CarreraDeMedallas.act),
  * así que lo que se ve es el juego real: dado, movimiento 3D, preguntas,
- * rachas, medallas y victoria. Nunca juegan por un asiento que tenga un
+ * aciertos, medallas y victoria. Nunca juegan por un asiento que tenga un
  * dispositivo conectado.
  *
  * Herramienta de prueba de la pantalla principal: para elegir cuándo
@@ -13,7 +13,7 @@
   'use strict';
 
   const { $, el, toast } = window.Dom;
-  const { CAT_KEYS, MEDALS_TO_WIN } = window.GameConfig;
+  const { CAT_KEYS, MEDALS_TO_WIN, HITS_FOR_MEDAL } = window.GameConfig;
   const { CREATURES } = window.GameArt;
   const Game = window.CarreraDeMedallas;
   const Setup = window.GameSetup;
@@ -56,6 +56,12 @@
     return wrong[Math.floor(Math.random() * wrong.length)];
   }
 
+  /** Quién actúa: la víctima mientras responde una defensa del Team Rocket. */
+  function actorOf(v) {
+    const pd = v.pending;
+    return pd && pd.type === 'question' && !pd.answered && pd.answerer != null ? pd.answerer : v.current;
+  }
+
   /** Decide la próxima acción para la vista actual, o null si toca esperar. */
   function nextAction(v) {
     const pd = v.pending;
@@ -65,13 +71,23 @@
       if (pd && pd.type === 'question' && pd.answered && v.winner === v.current) return { wait: pace.read, action: { type: 'continue' } };
       return null;
     }
-    if (Game.isRemote(v.current)) return null;
+    if (Game.isRemote(actorOf(v))) return null;
     if (!pd) return v.phase === 'idle' && !v.busy ? { wait: pace.think, action: { type: 'roll' } } : null;
     switch (pd.type) {
       case 'question':
         return pd.answered ? { wait: pace.read, action: { type: 'continue' } } : { wait: pace.think * 1.5, action: { type: 'answer', i: null } };
-      case 'choose':
-        return { wait: pace.think, action: { type: 'choose', cat: CAT_KEYS[Math.floor(Math.random() * CAT_KEYS.length)] } };
+      case 'choose': {
+        // Con la pregunta por la medalla, solo categorías cuya medalla falta.
+        const p = v.players[v.current];
+        const cats = CAT_KEYS.filter((c) => !(p.streak >= HITS_FOR_MEDAL && p.medals[c]));
+        return { wait: pace.think, action: { type: 'choose', cat: cats[Math.floor(Math.random() * cats.length)] } };
+      }
+      case 'rocket': {
+        // El bot le roba al rival con más medallas.
+        const count = (seat) => CAT_KEYS.filter((c) => v.players[seat].medals[c]).length;
+        const target = pd.options.reduce((best, o) => (count(o.seat) > count(best.seat) ? o : best));
+        return { wait: pace.think, action: { type: 'steal', victim: target.seat } };
+      }
       case 'info':
       case 'medal':
         return { wait: pace.read * 0.7, action: { type: 'continue' } };
@@ -93,7 +109,7 @@
         if (stateKey(Game.publicView() || v) !== key) continue;
         const action = plan.action;
         if (action.type === 'answer') action.i = pickAnswer();
-        const seat = v.current;
+        const seat = actorOf(v);
         const correctIdx = action.type === 'answer' ? Game.getState().pending.order.indexOf(0) : null;
         if (Game.act(seat, action)) {
           lastActedKey = key;

@@ -111,15 +111,16 @@
       icon: categoryIcon(c),
       color: CATS[c].color,
       title: CATS[c].name,
-      text: `Pregunta de ${CATS[c].name.toLowerCase()}. Suma a tu racha.`,
+      text: `Pregunta de ${CATS[c].name.toLowerCase()}. Suma un acierto.`,
     }));
     items.push(
-      { icon: medalIcon('tipos'), color: '#f8c630', title: 'Medalla directa', text: 'Borde dorado. Acierta una pregunta y ganas esa medalla de gimnasio. No altera la racha.' },
+      { icon: medalIcon('tipos'), color: '#f8c630', title: 'Medalla directa', text: 'Borde dorado. Acierta una pregunta y ganas esa medalla de gimnasio. No cambia tus aciertos.' },
       { icon: artIcon('pokeball'), color: '#12b886', title: 'Pueblo Paleta', text: 'La salida. Caer aquí no tiene efecto.' },
       { icon: artIcon('dodrio'), color: '#12b886', title: 'Dodrio veloz', text: 'Te lleva 2 o 3 casillas adelante y aplicas la nueva casilla.' },
       { icon: artIcon('diglett'), color: '#fa5252', title: 'Diglett', text: 'Te hace tropezar: retrocedes 2 o 3 casillas y aplicas la nueva.' },
       { icon: artIcon('zubat'), color: '#5c3d2e', title: 'Monte Moon', text: 'Te pierdes entre Zubat: pierdes tu próximo turno.' },
       { icon: artIcon('chansey'), color: '#f06595', title: 'Centro Pokémon', text: 'Eliges la categoría de tu pregunta.' },
+      { icon: artIcon('meowth'), color: '#c92a2a', title: 'Team Rocket', text: 'Le robas una medalla a un rival; él puede defenderla con una pregunta.' },
       { icon: artIcon('tentacool'), color: '#1098ad', title: 'Islas Espuma', text: 'La corriente te arrastra: retrocedes 4 casillas.' },
     );
     return items;

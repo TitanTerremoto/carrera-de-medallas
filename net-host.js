@@ -7,8 +7,8 @@
  *   vuelve a validar cada una).
  * - Envía a cada dispositivo la vista pública tras cada cambio.
  *
- * Si un dispositivo se desconecta, su asiento vuelve a poder jugarse desde
- * esta pantalla hasta que se reconecte con su token.
+ * Si un dispositivo se desconecta (o deja de dar latidos), su asiento vuelve
+ * a poder jugarse desde esta pantalla hasta que se reconecte con su token.
  */
 (function () {
   'use strict';
@@ -127,11 +127,16 @@
   // ── Conexiones de dispositivos ──
   function onConnection(conn) {
     conn.seat = null;
+    conn.lastSeen = Date.now();
     conn.on('open', () => {
+      conn.lastSeen = Date.now();
       conns.add(conn);
       sendState(conn);
     });
-    conn.on('data', (msg) => handleMessage(conn, msg));
+    conn.on('data', (msg) => {
+      conn.lastSeen = Date.now();
+      handleMessage(conn, msg);
+    });
     conn.on('close', () => dropConn(conn));
     conn.on('error', (err) => {
       console.warn('Error en la conexión de un dispositivo:', err);
@@ -142,6 +147,7 @@
   function dropConn(conn) {
     if (!conns.has(conn)) return;
     conns.delete(conn);
+    if (conn.open) conn.close();
     if (conn.seat != null && seatConn[conn.seat] === conn) {
       const name = Setup.seats()[conn.seat].name || `Jugador ${conn.seat + 1}`;
       toast(`📴 ${name} se desconectó`);
@@ -171,6 +177,8 @@
   function handleMessage(conn, msg) {
     if (!Net.isMessage(msg)) return;
     switch (msg.t) {
+      case 'ping':
+        return reply(conn, { t: 'pong' });
       case 'join':
         return handleJoin(conn, msg);
       case 'leave':
@@ -182,7 +190,7 @@
         return;
       case 'act': {
         if (conn.seat == null || seatConn[conn.seat] !== conn) return reply(conn, { t: 'error', msg: 'Primero elige tu asiento.' });
-        const ok = Game.act(conn.seat, { type: msg.a, i: msg.i, cat: msg.cat });
+        const ok = Game.act(conn.seat, { type: msg.a, i: msg.i, cat: msg.cat, victim: msg.victim });
         if (!ok) sendState(conn); // re-sincroniza por si el dispositivo iba atrasado
         return;
       }
@@ -328,7 +336,19 @@
     $('roomBadge').className = `room-badge ${status.kind}`;
   }
 
+  /** Conexiones que dejaron de dar latidos: se cierran y el asiento se libera. */
+  function sweepDeadConns() {
+    const now = Date.now();
+    for (const conn of [...conns]) {
+      if (now - conn.lastSeen > Net.DEAD_MS) {
+        console.warn('Un dispositivo dejó de responder; se libera su asiento.');
+        dropConn(conn);
+      }
+    }
+  }
+
   // ── Inicio ──
+  setInterval(sweepDeadConns, Net.PING_MS);
   Game.onUpdate(scheduleBroadcast);
   Setup.onChange(() => {
     renderPanels();

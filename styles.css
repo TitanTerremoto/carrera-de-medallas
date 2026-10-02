@@ -540,6 +540,7 @@ main {
 .sq-start { background: linear-gradient(135deg, #d3f9d8, #96f2d7); color: #087f5b; }
 .sq-skip { background: linear-gradient(135deg, #e9d8c4, #c9a27e); color: #5c3d2e; }
 .sq-wild { background: linear-gradient(135deg, #f3d9fa, #e5dbff); color: #862e9c; }
+.sq-rocket { background: linear-gradient(135deg, #ffe3e3, #ffc9c9); color: #c92a2a; }
 .sq-corner.sq-move { background: linear-gradient(135deg, #c5f6fa, #99e9f2); color: #0b7285; }
 .sq-corner .sq-sub { color: inherit; opacity: 0.85; }
 
@@ -1263,8 +1264,52 @@ main {
   transition: transform 0.12s;
 }
 
-.choose-btn:hover {
+/* Team Rocket: elegir a qué rival robarle. */
+.rocket-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.rocket-btn {
+  font: inherit;
+  font-weight: 800;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border-radius: 14px;
+  border: 3px solid var(--pc);
+  background: color-mix(in srgb, var(--pc) 10%, #fff);
+  color: var(--pc);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+
+.rocket-btn:hover {
   transform: translateY(-2px);
+}
+
+.rocket-medals {
+  display: flex;
+  gap: 4px;
+}
+
+.rocket-medals img,
+.rocket-medals svg {
+  width: 26px;
+  height: 26px;
+}
+
+.choose-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+/* Con la pregunta por la medalla, las medallas ya ganadas no se pueden elegir. */
+.choose-btn:disabled {
+  opacity: 0.35;
+  filter: grayscale(1);
+  cursor: not-allowed;
 }
 
 .choose-btn svg {
@@ -1688,6 +1733,23 @@ main {
   background: #e6fcf5;
   padding: 2px 8px;
   border-radius: 999px;
+}
+
+/* Si el dispositivo no responde, la pantalla principal toma el turno. */
+.btn-takeover {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: #1864ab;
+  cursor: pointer;
+}
+
+.btn-takeover:hover {
+  background: #d0ebff;
 }
 
 /* Aviso "esperando al dispositivo" dentro de las ventanas */

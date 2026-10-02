@@ -55,7 +55,9 @@
   /** Colores fijos por asiento (bien distintos de los de las categorías). */
   const PLAYER_COLORS = ['#d6336c', '#0c8599', '#7048e8', '#495057'];
 
-  const STREAK_GOAL = 3;
+  // Aciertos que se acumulan (los errores no los borran) para que la próxima
+  // pregunta normal sea «por la medalla».
+  const HITS_FOR_MEDAL = 2;
   const ANSWER_SECONDS = 20; // tiempo para responder cada pregunta
   // Con las 4 medallas se corre a Pueblo Paleta para el desafío de la Liga Pokémon.
   const MEDALS_TO_WIN = 4;
@@ -68,22 +70,24 @@
   // `art`: Pokémon (archivo en assets/pokemon/) o 'pokeball' que ilustra la casilla.
   const ADV = (n) => ({ type: 'move', steps: n, name: 'Dodrio veloz', art: 'dodrio' });
   const BACK = (n) => ({ type: 'move', steps: -n, name: 'Diglett', art: 'diglett' });
+  // Team Rocket: quien cae le roba una medalla a un rival (que puede defenderla).
+  const ROCKET = () => ({ type: 'rocket', name: 'Team Rocket', art: 'meowth' });
 
   /*
    * Recorrido de 36 casillas en sentido horario, empezando por Pueblo Paleta
    * (esquina inferior derecha). Las posiciones 0, 9, 18 y 27 son esquinas.
-   * 6 casillas de pregunta y 1 de medalla directa por categoría, y 4 de
-   * avance/retroceso.
+   * 5–6 casillas de pregunta y 1 de medalla directa por categoría, 4 de
+   * avance/retroceso y 2 del Team Rocket (en lados opuestos).
    */
   const BOARD_LAYOUT = [
     { type: 'start', name: 'Pueblo Paleta', art: 'pokeball' },
     Q('tipos'), Q('pokedex'), ADV(2), Q('habilidades'), Q('cambalache'), MEDAL('tipos'), Q('pokedex'), Q('habilidades'),
     { type: 'skip', name: 'Monte Moon', art: 'zubat' },
-    Q('cambalache'), Q('tipos'), BACK(2), Q('pokedex'), MEDAL('habilidades'), Q('cambalache'), Q('tipos'), Q('habilidades'),
+    Q('cambalache'), Q('tipos'), BACK(2), Q('pokedex'), MEDAL('habilidades'), ROCKET(), Q('tipos'), Q('habilidades'),
     { type: 'wild', name: 'Centro Pokémon', art: 'chansey' },
     Q('tipos'), Q('pokedex'), ADV(3), Q('habilidades'), Q('cambalache'), MEDAL('pokedex'), Q('pokedex'), Q('habilidades'),
     { type: 'move', steps: -4, name: 'Islas Espuma', art: 'tentacool' },
-    Q('cambalache'), Q('tipos'), BACK(3), Q('pokedex'), MEDAL('cambalache'), Q('cambalache'), Q('tipos'), Q('habilidades'),
+    Q('cambalache'), Q('tipos'), BACK(3), Q('pokedex'), MEDAL('cambalache'), Q('cambalache'), Q('tipos'), ROCKET(),
   ];
   const BOARD_SIZE = BOARD_LAYOUT.length; // 36
   const SIDE = BOARD_SIZE / 4; // casillas por lado sin contar la esquina siguiente
@@ -94,6 +98,7 @@
       case 'start': return 'Salida';
       case 'skip': return 'Pierdes 1 turno';
       case 'wild': return 'Eliges la categoría';
+      case 'rocket': return 'Robas una medalla';
       case 'move': return sq.steps > 0 ? `Avanza ${sq.steps}` : `Retrocede ${-sq.steps}`;
       case 'medal': return `Medalla ${CATS[sq.cat].name}`;
       case 'question': return CATS[sq.cat].name;
@@ -108,7 +113,7 @@
   }
 
   window.GameConfig = {
-    CATS, CAT_KEYS, QUESTION_KEYS, LEAGUE_KEY, PLAYER_COLORS, STREAK_GOAL, ANSWER_SECONDS, MEDALS_TO_WIN, DICE_MAX, SAVE_KEY,
+    CATS, CAT_KEYS, QUESTION_KEYS, LEAGUE_KEY, PLAYER_COLORS, HITS_FOR_MEDAL, ANSWER_SECONDS, MEDALS_TO_WIN, DICE_MAX, SAVE_KEY,
     BOARD_LAYOUT, BOARD_SIZE, SIDE, squareSubtitle, squareTitle,
   };
 })();

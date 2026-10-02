@@ -7,6 +7,7 @@
  */
 import * as THREE from 'three';
 import { tileTexture, centerTexture } from './textures.js';
+import { buildScenery } from './scenery.js';
 
 const { BOARD_LAYOUT, SIDE } = window.GameConfig;
 const { gridPos } = window.GameBoard;
@@ -47,81 +48,11 @@ function skyTexture() {
   return tex;
 }
 
-/** Árboles, rocas, flores y nubes alrededor del tablero (se ven en la vista 3D). */
-function buildScenery(scene) {
-  const rand = (() => {
-    let seed = 7; // determinista: el paisaje es siempre el mismo
-    return () => {
-      seed = (seed * 16807) % 2147483647;
-      return seed / 2147483647;
-    };
-  })();
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(80, 48), new THREE.MeshStandardMaterial({ color: '#8fd694', roughness: 1 }));
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.62;
-  ground.receiveShadow = true;
-  scene.add(ground);
-
-  const trunkMat = new THREE.MeshStandardMaterial({ color: '#8d5a32', roughness: 0.9 });
-  const leafMats = ['#2f9e44', '#40c057', '#37b24d'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true }));
-  const rockMat = new THREE.MeshStandardMaterial({ color: '#adb5bd', roughness: 1, flatShading: true });
-  const flowerMats = ['#ff6b6b', '#ffd43b', '#f783ac', '#74c0fc'].map((c) => new THREE.MeshStandardMaterial({ color: c }));
-
-  for (let i = 0; i < 46; i++) {
-    const ang = rand() * Math.PI * 2;
-    const r = 9.5 + rand() * 22;
-    const x = Math.cos(ang) * r;
-    const z = Math.sin(ang) * r;
-    const kind = rand();
-    if (kind < 0.55) {
-      const tree = new THREE.Group();
-      const h = 1.2 + rand() * 1.4;
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, h * 0.45, 7), trunkMat);
-      trunk.position.y = h * 0.22;
-      const crown = new THREE.Mesh(new THREE.ConeGeometry(h * 0.42, h * 0.9, 7), leafMats[i % 3]);
-      crown.position.y = h * 0.8;
-      tree.add(trunk, crown);
-      tree.position.set(x, -0.62, z);
-      tree.traverse((m) => {
-        m.castShadow = true;
-      });
-      scene.add(tree);
-    } else if (kind < 0.8) {
-      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.3 + rand() * 0.5, 0), rockMat);
-      rock.position.set(x, -0.45, z);
-      rock.rotation.set(rand(), rand(), rand());
-      rock.castShadow = true;
-      scene.add(rock);
-    } else {
-      for (let k = 0; k < 5; k++) {
-        const f = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), flowerMats[(i + k) % 4]);
-        f.position.set(x + (rand() - 0.5), -0.52, z + (rand() - 0.5));
-        scene.add(f);
-      }
-    }
-  }
-
-  const cloudMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true });
-  const clouds = new THREE.Group();
-  for (let i = 0; i < 9; i++) {
-    const cloud = new THREE.Group();
-    for (let k = 0; k < 4; k++) {
-      const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(0.8 + rand() * 0.6, 0), cloudMat);
-      puff.position.set(k * 0.9 - 1.3, rand() * 0.4, rand() * 0.6);
-      cloud.add(puff);
-    }
-    const ang = (i / 9) * Math.PI * 2;
-    cloud.position.set(Math.cos(ang) * 24, 7 + rand() * 4, Math.sin(ang) * 24);
-    clouds.add(cloud);
-  }
-  scene.add(clouds);
-  return { clouds };
-}
-
 /** Construye todo y devuelve la API de la escena. */
 export async function createStage(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // Resolución inicial moderada; view3d.js la ajusta según el rendimiento real.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -131,7 +62,7 @@ export async function createStage(container) {
 
   const scene = new THREE.Scene();
   scene.background = skyTexture();
-  scene.fog = new THREE.Fog('#d6f0ff', 34, 90);
+  scene.fog = new THREE.Fog('#d6f0ff', 30, 70);
 
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
 
@@ -208,6 +139,7 @@ export async function createStage(container) {
     camera,
     tiles,
     scenery,
+    sun,
     resize,
     tileCenter: (i) => tiles[i].center.clone(),
   };

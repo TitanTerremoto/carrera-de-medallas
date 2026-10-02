@@ -5,15 +5,16 @@
  * envía intenciones (lanzar, responder, elegir, continuar) y dibuja la foto
  * que recibe. La respuesta correcta solo llega después de responder.
  *
- * El asiento se recuerda con un token en localStorage, así que si el
+ * El asiento se recuerda con un token en sessionStorage, así que si el
  * teléfono se bloquea o se recarga la página, vuelve a su lugar solo.
+ * Un latido con la sala detecta conexiones muertas y reconecta enseguida.
  */
 (function () {
   'use strict';
 
   const { $, el, toast } = window.Dom;
-  const { CATS, CAT_KEYS, STREAK_GOAL, DICE_MAX, ANSWER_SECONDS } = window.GameConfig;
-  const { CREATURES, creatureIcon, categoryIcon, medalIcon, typeIcons, pokemonIcon } = window.GameArt;
+  const { CATS, CAT_KEYS, HITS_FOR_MEDAL, DICE_MAX, ANSWER_SECONDS, BOARD_LAYOUT, SIDE } = window.GameConfig;
+  const { CREATURES, creatureIcon, categoryIcon, medalIcon, typeIcons, pokemonIcon, artIcon } = window.GameArt;
   const Sound = window.GameSound;
   const Net = window.NetProtocol;
 
@@ -31,6 +32,8 @@
   let joinCreature = null;
   let prevTurnMine = false;
   let answerDeadline = null; // hora local en la que vence la pregunta abierta
+  let lastHeard = 0; // último mensaje recibido de la sala
+  let sentAt = 0; // cuándo se envió la acción pendiente
   let lastAnswerSeen = null;
 
   /*
@@ -118,22 +121,58 @@
 
   function openConn() {
     if (conn && conn.open) return;
-    conn = peer.connect(Net.ROOM_PREFIX + code, { reliable: true });
-    conn.on('open', () => {
+    if (conn) conn.close();
+    const c = peer.connect(Net.ROOM_PREFIX + code, { reliable: true });
+    conn = c;
+    // Los avisos de una conexión vieja (ya reemplazada) se ignoran.
+    c.on('open', () => {
+      if (c !== conn) return;
+      lastHeard = Date.now();
+      sending = false;
       setStatus(`Sala ${code}`, 'ok');
       // Si ya teníamos asiento, lo recuperamos automáticamente.
       if (me.seat != null) sendJoin(me.seat);
     });
-    conn.on('data', onMessage);
-    conn.on('close', () => {
+    c.on('data', (msg) => {
+      if (c !== conn) return;
+      lastHeard = Date.now();
+      onMessage(msg);
+    });
+    c.on('close', () => {
+      if (c !== conn) return;
       setStatus('Reconectando…', 'wait');
       retryLater();
     });
-    conn.on('error', (err) => {
+    c.on('error', (err) => {
+      if (c !== conn) return;
       console.warn('Error en la conexión con la sala:', err);
       retryLater();
     });
   }
+
+  /** La conexión parece abierta pero la sala no contesta: se rehace ya. */
+  function reconnectNow() {
+    if (conn) {
+      const old = conn;
+      conn = null;
+      old.close();
+    }
+    sending = false;
+    setStatus('Reconectando…', 'wait');
+    connect();
+  }
+
+  // Latido: se avisa a la sala que seguimos aquí y se detecta si ella calló.
+  setInterval(() => {
+    if (!code || !conn || !conn.open) return;
+    if (Date.now() - lastHeard > Net.DEAD_MS) return reconnectNow();
+    conn.send({ t: 'ping' });
+    // Una acción sin respuesta no deja los botones bloqueados para siempre.
+    if (sending && Date.now() - sentAt > Net.DEAD_MS) {
+      sending = false;
+      render();
+    }
+  }, Net.PING_MS);
 
   function retryLater() {
     clearTimeout(retryTimer);
@@ -157,12 +196,13 @@
     if (sending) return;
     if (send({ t: 'act', a, ...(extra || {}) })) {
       sending = true;
+      sentAt = Date.now();
       render();
     }
   }
 
   function onMessage(msg) {
-    if (!Net.isMessage(msg)) return;
+    if (!Net.isMessage(msg, true) || msg.t === 'pong') return;
     if (msg.t === 'state') {
       last = msg;
       const pq = msg.game && msg.game.pending;
@@ -302,7 +342,70 @@
   }
 
   function streakPips(n) {
-    return el('span', { class: 'streak-pips' }, Array.from({ length: STREAK_GOAL }, (_, k) => el('span', { class: `pip-streak ${k < n ? 'on' : ''}` })));
+    return el('span', { class: 'streak-pips' }, Array.from({ length: HITS_FOR_MEDAL }, (_, k) => el('span', { class: `pip-streak ${k < n ? 'on' : ''}` })));
+  }
+
+  /*
+   * Tablero mínimo: el anillo de 36 casillas igual que en la pantalla
+   * principal (salida abajo a la derecha) y, en el centro, los 4 jugadores
+   * con sus medallas y aciertos. Las casillas se dibujan una sola vez; con
+   * cada foto solo se mueven las fichas y se actualiza el centro.
+   */
+  let boardBuilt = false;
+  let boardTokens = [];
+
+  /** Fila y columna (1..SIDE+1) de la casilla i (mismo recorrido que board.js). */
+  function gridPos(i) {
+    const end = SIDE + 1;
+    if (i <= SIDE) return [end, end - i];
+    if (i <= 2 * SIDE) return [end - (i - SIDE), 1];
+    if (i <= 3 * SIDE) return [1, 1 + (i - 2 * SIDE)];
+    return [1 + (i - 3 * SIDE), end];
+  }
+
+  function cellIcon(sq) {
+    if (sq.type === 'question') return categoryIcon(sq.cat, 'mb-icon');
+    if (sq.type === 'medal') return medalIcon(sq.cat, 'mb-icon');
+    return artIcon(sq.art, 'mb-icon');
+  }
+
+  function buildBoard() {
+    const cells = BOARD_LAYOUT.map((sq, i) => {
+      const [row, col] = gridPos(i);
+      const color = sq.cat ? CATS[sq.cat].color : null;
+      return el('div', { class: `mb-cell mb-${sq.type}`, style: { 'grid-row': String(row), 'grid-column': String(col), ...(color ? { '--cat': color } : {}) }, attrs: { title: sq.name || CATS[sq.cat].name } }, [cellIcon(sq)]);
+    });
+    boardTokens = [0, 1, 2, 3].map((seat) => el('div', { class: `mb-token mb-seat-${seat}` }));
+    $('miniBoard').replaceChildren(...cells, el('div', { class: 'mb-center', attrs: { id: 'mbCenter' } }), ...boardTokens);
+    boardBuilt = true;
+  }
+
+  function renderBoard(g, mineIdx) {
+    if (!boardBuilt) buildBoard();
+    g.players.forEach((p, seat) => {
+      const t = boardTokens[seat];
+      const [row, col] = gridPos(p.pos);
+      t.style.gridRow = String(row);
+      t.style.gridColumn = String(col);
+      t.style.setProperty('--pc', p.color);
+      t.classList.toggle('current', g.phase !== 'over' && seat === g.current);
+      t.classList.toggle('mine', seat === mineIdx);
+      if (t.dataset.creature !== p.creature) {
+        t.dataset.creature = p.creature || '';
+        t.replaceChildren(p.creature ? creatureIcon(p.creature) : el('span', { text: '?' }));
+      }
+    });
+    $('mbCenter').replaceChildren(
+      ...g.players.map((p, seat) =>
+        el('div', { class: `mb-player ${g.phase !== 'over' && seat === g.current ? 'current' : ''} ${seat === mineIdx ? 'mine' : ''}`, style: { '--pc': p.color } }, [
+          token(p, 'mb-player-token'),
+          el('span', { class: 'mb-player-name', text: p.name }),
+          el('span', { class: 'mb-medals' }, CAT_KEYS.map((c) => el('span', { class: `mini-medal ${p.medals[c] ? 'owned' : ''}` }, [medalIcon(c)]))),
+          p.racing ? el('span', { class: 'mb-race', text: p.atFinal ? '🏆' : '🏁' }) : streakPips(p.streak),
+        ]),
+      ),
+      ...(g.lastRoll ? [el('div', { class: 'mb-roll', text: `🎲 ${g.lastRoll}` })] : []),
+    );
   }
 
   function renderPlay() {
@@ -318,28 +421,16 @@
     }
     prevTurnMine = myTurn;
 
-    $('playMe').style.setProperty('--pc', p.color);
-    $('playMe').classList.toggle('my-turn', myTurn);
-    $('playMe').replaceChildren(
-      token(p, 'token-lg'),
-      el('div', { class: 'ctrl-me-info' }, [
-        el('strong', { text: p.name }),
-        el('span', { class: 'ctrl-streak' }, [streakPips(p.streak), ` Racha ${p.streak}/${STREAK_GOAL}`]),
-        p.racing ? el('span', { class: 'ctrl-race', text: p.atFinal ? '🏆 Desafío de la Liga Pokémon' : '🏁 ¡Corre a Pueblo Paleta!' }) : null,
-      ]),
-      el(
-        'div',
-        { class: 'ctrl-mini ctrl-mini-lg' },
-        CAT_KEYS.map((c) => el('span', { class: `mini-medal ${p.medals[c] ? 'owned' : ''}`, attrs: { title: CATS[c].name } }, [medalIcon(c)])),
-      ),
-    );
-    $('actionCard').replaceChildren(...actionContent(g, mineIdx, myTurn));
-    $('scoreList').replaceChildren(...lobbyRows(g.players, g.phase === 'over' ? -1 : g.current));
+    renderBoard(g, mineIdx);
+    const card = $('actionCard');
+    card.style.setProperty('--pc', p.color);
+    card.classList.toggle('my-turn', myTurn);
+    card.replaceChildren(...actionContent(g, mineIdx, myTurn));
   }
 
   function waitingFor(g, text) {
     const cp = g.players[g.current];
-    return [el('div', { class: 'ctrl-waiting', style: { '--pc': cp.color } }, [token(cp, 'token-lg'), el('p', { text: text || `Turno de ${cp.name}` })])];
+    return [el('p', { class: 'ctrl-waiting', style: { '--pc': cp.color }, text: text || `Turno de ${cp.name}` })];
   }
 
   function bigButton(label, onClick, cls) {
@@ -353,13 +444,10 @@
    */
   function diceBlock(result) {
     if (result) {
-      return [
-        el('div', { class: 'dice-block ctrl-block hit', attrs: { 'aria-hidden': 'true' } }, [el('span', { text: String(result) })]),
-        el('p', { class: 'ctrl-center-text', text: `¡Sacaste ${result}!` }),
-      ];
+      return [el('div', { class: 'dice-block ctrl-block hit', attrs: { 'aria-hidden': 'true' } }, [el('span', { text: String(result) })])];
     }
     return [
-      el('p', { class: 'ctrl-center-text', text: '¡Es tu turno! Golpea el bloque' }),
+      el('p', { class: 'ctrl-center-text', text: '¡Tu turno!' }),
       el(
         'button',
         {
@@ -403,7 +491,7 @@
 
     if (!pd) {
       if (g.phase === 'idle' && myTurn && g.players[mineIdx].atFinal) {
-        return [el('p', { class: 'ctrl-center-text', text: '¡Llegaste a Pueblo Paleta! Vence a la Liga Pokémon y serás Campeón.' }), bigButton('🏆 Desafío de la Liga', () => act('roll'))];
+        return [bigButton('🏆 Desafío de la Liga', () => act('roll'))];
       }
       if (g.phase === 'idle') return myTurn ? diceBlock() : waitingFor(g);
       return myTurn && g.lastRoll ? diceBlock(g.lastRoll) : waitingFor(g, `${cp.name} se mueve…`);
@@ -412,35 +500,60 @@
     switch (pd.type) {
       case 'move':
         if (myTurn && g.lastRoll) return diceBlock(g.lastRoll);
-        return waitingFor(g, g.lastRoll ? `👊 ${cp.name} sacó ${g.lastRoll}…` : `${cp.name} se mueve…`);
+        return waitingFor(g, `${cp.name} se mueve…`);
       case 'question': {
-        const out = [questionView(pd, myTurn)];
-        if (pd.answered && myTurn) out.push(bigButton(pd.outcome.won ? '🏆 Ver celebración' : 'Continuar ➜', () => act('continue')));
-        if (!myTurn && !pd.answered) out.unshift(el('p', { class: 'ctrl-small', text: `Responde ${cp.name}:` }));
+        // En una defensa del Team Rocket responde la víctima, no el jugador en turno.
+        const answerer = pd.answerer != null ? pd.answerer : g.current;
+        const iAnswer = answerer === mineIdx;
+        const out = [questionView(pd, iAnswer)];
+        if (pd.answered && (myTurn || iAnswer)) out.push(bigButton(pd.outcome.won ? '🏆 Ver celebración' : 'Continuar ➜', () => act('continue')));
+        if (!pd.answered && pd.answerer != null) {
+          out.unshift(el('p', { class: 'ctrl-small rocket-note', text: iAnswer ? `🚀 ¡${cp.name} quiere tu medalla! Defiéndela:` : `🚀 ${g.players[answerer].name} defiende su medalla` }));
+        } else if (!iAnswer && !pd.answered) out.unshift(el('p', { class: 'ctrl-small', text: `Responde ${g.players[answerer].name}` }));
         return out;
       }
-      case 'choose':
-        if (!myTurn) return waitingFor(g, `${cp.name} está eligiendo categoría…`);
+      case 'rocket':
+        if (!myTurn) return waitingFor(g, `🚀 ${cp.name} elige a quién robar…`);
         return [
-          el('h2', { text: '¡Centro Pokémon! Elige la categoría' }),
+          el('h2', { text: '🚀 ¿A quién le robas?' }),
+          el(
+            'div',
+            { class: 'choose-grid' },
+            pd.options.map((o) => {
+              const v = g.players[o.seat];
+              return el(
+                'button',
+                { class: 'choose-btn', style: { '--cat': v.color }, attrs: { type: 'button', disabled: sending }, on: { click: () => act('steal', { victim: o.seat }) } },
+                [token(v, 'token-lg'), el('span', { text: v.name }), el('span', { class: 'ctrl-mini' }, o.cats.map((c) => el('span', { class: 'mini-medal owned' }, [medalIcon(c)])))],
+              );
+            }),
+          ),
+        ];
+      case 'choose': {
+        if (!myTurn) return waitingFor(g, `${cp.name} elige categoría…`);
+        // Con la pregunta por la medalla no se puede elegir una medalla ya ganada.
+        const owned = (c) => cp.streak >= HITS_FOR_MEDAL && cp.medals[c];
+        return [
+          el('h2', { text: 'Centro Pokémon: elige categoría' }),
           el(
             'div',
             { class: 'choose-grid' },
             CAT_KEYS.map((c) =>
               el(
                 'button',
-                { class: 'choose-btn', style: { '--cat': CATS[c].color }, attrs: { type: 'button', disabled: sending }, on: { click: () => act('choose', { cat: c }) } },
+                { class: 'choose-btn', style: { '--cat': CATS[c].color }, attrs: { type: 'button', disabled: sending || owned(c) }, on: { click: () => act('choose', { cat: c }) } },
                 [categoryIcon(c), el('span', { text: CATS[c].name })],
               ),
             ),
           ),
         ];
+      }
       case 'info':
         return [el('h2', { text: pd.title }), el('p', { text: pd.text }), myTurn ? bigButton('Continuar ➜', () => act('continue')) : null].filter(Boolean);
       case 'medal':
         return [
           el('div', { class: 'medal-big' }, [medalIcon(pd.cat)]),
-          el('h2', { class: 'ctrl-center-text', text: `¡Medalla de ${CATS[pd.cat].name} para ${cp.name}!` }),
+          el('h2', { class: 'ctrl-center-text', text: `¡Medalla para ${cp.name}!${pd.from != null ? ` (robada a ${g.players[pd.from].name})` : ''}` }),
           myTurn ? bigButton('¡Genial! ➜', () => act('continue')) : null,
         ].filter(Boolean);
       default:
@@ -450,7 +563,7 @@
 
   /** Imagen de assets/ con una ruta que mandó la pantalla principal (solo rutas locales). */
   function artImg(src, cls) {
-    const safe = /^assets\/[a-z0-9/_-]+\.png$/.test(src) ? src : '';
+    const safe = /^assets\/[a-z0-9/_-]+\.(png|webp)$/.test(src) ? src : '';
     const node = pokemonIcon('pikachu', cls);
     node.src = safe;
     return node;
@@ -468,8 +581,8 @@
     const letters = ['A', 'B', 'C', 'D'];
     return el('div', { class: 'ctrl-question', style: { '--cat': cat.color } }, [
       el('div', { class: 'ctrl-q-head' }, [
-        pd.mode === 'medal' ? medalIcon(pd.cat) : categoryIcon(pd.cat),
-        el('div', {}, [el('small', { text: { medal: '🏅 Medalla directa', final: '🏆 Desafío final' }[pd.mode] || 'Pregunta' }), el('strong', { text: cat.name })]),
+        pd.mode === 'medal' || pd.mode === 'defense' || pd.forMedal ? medalIcon(pd.cat) : categoryIcon(pd.cat),
+        el('div', {}, [el('small', { text: pd.forMedal ? '🏅 Por la medalla' : { medal: '🏅 Medalla directa', final: '🏆 Desafío final', defense: '🚀 Team Rocket' }[pd.mode] || 'Pregunta' }), el('strong', { text: cat.name })]),
       ]),
       pd.art && pd.art.length ? el('div', { class: 'q-art' }, pd.art.map((src) => artImg(src, 'q-art-img'))) : null,
       el('p', { class: 'q-text', text: pd.text }),
@@ -499,8 +612,6 @@
               class: pd.outcome.correct ? 'ok' : 'bad',
               text: pd.outcome.correct ? '✔ ¡Correcto!' : `${pd.outcome.timeout ? '⏰ ¡Se acabó el tiempo!' : '✘ Incorrecto.'} Era: ${pd.options[pd.correct]}`,
             }),
-            pd.revealArt ? el('div', { class: 'q-reveal' }, [artImg(pd.revealArt, 'q-reveal-img')]) : null,
-            el('p', { text: pd.explain }),
             el('p', { class: `q-outcome ${pd.outcome.medal ? 'medal-line' : ''}`, text: pd.outcome.message }),
           ])
         : null,
@@ -550,8 +661,11 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
     keepAwake();
-    // Al volver a la pestaña, si la conexión cayó, se reintenta enseguida.
-    if (code && (!conn || !conn.open)) connect();
+    // Al volver a la pestaña (el celular estuvo bloqueado o en otra app), si la
+    // conexión cayó o quedó muda, se rehace enseguida en vez de esperar al latido.
+    if (!code) return;
+    if (!conn || !conn.open) connect();
+    else if (Date.now() - lastHeard > Net.PING_MS * 2) reconnectNow();
   });
 
   if (code) start();
