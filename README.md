@@ -61,7 +61,7 @@ Nintendo / Game Freak / The Pokémon Company):
 - `assets/types/`: símbolo de cada tipo (en las opciones como «Fuego/Volador»).
 - `assets/badges/`: medallas de gimnasio de Kanto. Tipos → Arcoíris,
   Pokédex → Roca, Habilidades → Trueno, Cambalache → Alma.
-- `assets/cries/`: gritos de las cuatro fichas (suenan al empezar su turno,
+- `assets/cries/`: gritos de las ocho fichas (suenan al empezar su turno,
   al ganar una medalla y al ganar la partida).
 - `pokedata.js`: lista de nombres y tipos que usa el juego para encontrar
   las imágenes. Si agregas preguntas con otros Pokémon, suma su imagen en
@@ -82,6 +82,18 @@ Bots que juegan solos, para ver cómo avanza una partida sin jugadores:
 - Durante una partida: «🤖 Modo tester» en la barra de arriba enciende o
   apaga los bots sobre la partida actual.
 - Directo: `index.html?tester=1`.
+
+**Probar casilla:** en el panel, elige cualquiera de las 36 casillas y toca
+«🧪 Ir». El jugador en turno salta a la casilla anterior y avanza 1, así se ve
+la llegada y el efecto (pregunta, medalla, Diglett, Team Rocket…). Funciona al
+empezar un turno; si los bots están jugando, se pausan. Para el Team Rocket, si
+nadie tiene nada que robar, a un rival se le da una medalla de prueba (queda
+anotado en el registro con 🧪).
+
+**Animación del Team Rocket (3D):** baja del cielo un globo con la «R» y Meowth
+en la canasta. Si la víctima defiende su medalla, el globo sale disparado
+girando y desaparece con un destello; si no, la medalla vuela de la víctima al
+ladrón y el globo se va. Con la cámara «siempre arriba» no hay plano especial.
 
 El panel (abajo a la izquierda) muestra turnos, aciertos, quién va ganando y
 de quién es el turno. Permite pausar, avanzar **un paso** por vez, elegir el
@@ -138,7 +150,13 @@ Al empezar una partida, la cámara hace un recorrido de ~8 s por el diorama
 
 Si la PC no sostiene ~45 cuadros por segundo, la calidad baja sola por pasos: resolución 1×, sin sombras dinámicas y sin Pokémon decorativos.
 
-## Fichas 3D (Pikachu y los iniciales)
+## Fichas 3D
+
+Hay 8 fichas para elegir (sin repetir): Pikachu, Charmander, Squirtle,
+Bulbasaur, Emolga, Noibat, Jolteon y Treecko. Los modelos de Cobblemon no
+traen las mismas animaciones: Emolga y Noibat vuelan al moverse, Treecko
+camina y festeja, y el de Jolteon viene sin animación (es una pose fija; la
+ficha igual salta y se balancea).
 
 Los modelos son los del mod **Cobblemon** (estilo Minecraft), descargados de
 `https://cobblemon.tools/pokedex/pokemon/<nombre>/models/<nombre>.gltf` para
@@ -172,7 +190,8 @@ expresiones alternativas ("emote") de Pikachu.
 
 El juego ajusta el tamaño según la pose de reposo y apoya el modelo sobre
 la base. `rotationY` (en grados) corrige hacia dónde mira: los de Cobblemon
-usan 180. Si un modelo falta o no carga, se usa la figura de juguete incluida.
+usan 180. Si un modelo falta o no carga, se usa la figura de juguete incluida
+(las fichas nuevas, que no tienen figura propia, muestran la de Pikachu).
 
 ## Archivos
 

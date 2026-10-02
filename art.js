@@ -28,6 +28,10 @@
     { id: 'charmander', name: 'Charmander', element: 'Fuego' },
     { id: 'squirtle', name: 'Squirtle', element: 'Agua' },
     { id: 'bulbasaur', name: 'Bulbasaur', element: 'Planta' },
+    { id: 'emolga', name: 'Emolga', element: 'Eléctrico/Volador' },
+    { id: 'noibat', name: 'Noibat', element: 'Volador/Dragón' },
+    { id: 'jolteon', name: 'Jolteon', element: 'Eléctrico' },
+    { id: 'treecko', name: 'Treecko', element: 'Planta' },
   ];
 
   /** Imagen de un archivo de assets (no se puede arrastrar ni seleccionar). */

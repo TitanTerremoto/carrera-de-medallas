@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { createStage, overviewPose, closePose } from './scene.js';
 import { Piece } from './pieces.js';
 import { createFx } from './fx.js';
+import { createRocket } from './rocket.js';
 import { tween, tickTweens, ease, wait, lerp } from './tween.js';
 
 const Game = window.CarreraDeMedallas;
@@ -66,6 +67,7 @@ async function start() {
   }
   const { scene, camera, renderer, tiles } = stage;
   const fx = createFx(scene);
+  const rocket = createRocket(scene, fx);
 
   // ── Cámara ──
   const cam = { position: new THREE.Vector3(), target: new THREE.Vector3(), fov: 30 };
@@ -219,6 +221,7 @@ async function start() {
     sync(state) {
       lastState = state;
       if (!state) {
+        rocket.reset();
         for (const p of pieces) scene.remove(p.root);
         pieces = [];
         players = [];
@@ -340,6 +343,34 @@ async function start() {
       if (medal) fx.medalCoin(at, medal);
     },
 
+    /** Team Rocket: llega el globo (casilla del Team Rocket). */
+    rocketArrive() {
+      // Plano de frente y algo bajo: desde arriba el globo no se distingue.
+      let shot = null;
+      if (camPref !== 'top') {
+        followSeat = null;
+        orbit = null;
+        setMode('rocket');
+        shot = transitionTo({ fov: 52, position: new THREE.Vector3(0, 8.2, 10.4), target: new THREE.Vector3(0, 1.2, -0.6) }, 1200);
+      }
+      return Promise.all([rocket.arrive(), shot]);
+    },
+    /** Se va el globo; blastOff = la víctima defendió su medalla. */
+    async rocketLeave(blastOff) {
+      await rocket.leave(blastOff);
+      if (mode === 'rocket') await goOverview(800);
+    },
+    /** La medalla robada vuela de la víctima al ladrón (y el globo se va). */
+    async steal(victim, thief, cat) {
+      const from = pieces[victim];
+      const to = pieces[thief];
+      if (!from || !to) return;
+      await rocket.steal(from.root.position.clone(), to.root.position.clone(), cat);
+      if (!to.play('happy')) to.play('cry');
+      to.jump(0.6, 480, Math.PI * 2);
+      api.rocketLeave(false);
+    },
+
     victory(seat) {
       return enqueue(async () => {
         const piece = pieces[seat];
@@ -424,6 +455,7 @@ async function start() {
       if (!p.busy && p.home) p.root.position.lerp(p.home, 1 - Math.exp(-dt * 8));
     }
     fx.update(dt, camera);
+    rocket.update(t);
     stage.scenery.update(dt, t);
     adaptQuality(dt);
 

@@ -73,6 +73,8 @@
       "Ho-Oh": "ho-oh",
       "Celebi": "celebi",
       "Treecko": "treecko",
+      "Emolga": "emolga",
+      "Noibat": "noibat",
       "Torchic": "torchic",
       "Mudkip": "mudkip",
       "Gardevoir": "gardevoir",

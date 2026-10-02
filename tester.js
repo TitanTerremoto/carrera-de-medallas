@@ -13,7 +13,7 @@
   'use strict';
 
   const { $, el, toast } = window.Dom;
-  const { CAT_KEYS, MEDALS_TO_WIN, HITS_FOR_MEDAL } = window.GameConfig;
+  const { CAT_KEYS, MEDALS_TO_WIN, HITS_FOR_MEDAL, BOARD_LAYOUT, squareTitle } = window.GameConfig;
   const { CREATURES } = window.GameArt;
   const Game = window.CarreraDeMedallas;
   const Setup = window.GameSetup;
@@ -196,6 +196,8 @@
     $('btnTesterPause').disabled = !tester.on;
     $('btnTesterStep').disabled = !tester.on || !tester.paused;
     $('btnTesterRun').hidden = tester.on || v.phase === 'over';
+    // Probar una casilla: solo al empezar un turno y con los bots en pausa o apagados.
+    $('btnTesterSquare').disabled = v.phase !== 'idle' || v.busy || (tester.on && !tester.paused);
   }
 
   function init() {
@@ -214,6 +216,15 @@
       lastActedKey = null;
     });
     $('btnTesterRun').addEventListener('click', start);
+    $('testerSquare').replaceChildren(...BOARD_LAYOUT.map((sq, i) => el('option', { text: `${i} · ${squareTitle(sq)}`, attrs: { value: String(i) } })));
+    $('btnTesterSquare').addEventListener('click', () => {
+      // Los bots quedan en pausa para poder ver la casilla con calma.
+      if (tester.on) tester.paused = true;
+      Game.testSquare(Number($('testerSquare').value)).then((ok) => {
+        if (!ok) toast('Se puede probar una casilla solo al empezar un turno.');
+      });
+      render();
+    });
     $('btnTesterClose').addEventListener('click', () => stop('Modo tester apagado: la partida sigue a mano.'));
     $('testerAccuracy').addEventListener('change', (e) => {
       tester.accuracy = Number(e.target.value);

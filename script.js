@@ -22,7 +22,7 @@
   'use strict';
 
   const { $, el, delay, openOverlay, closeOverlay, closeAllOverlays, toast, confirmDialog, isOpen } = window.Dom;
-  const { CATS, CAT_KEYS, QUESTION_KEYS, LEAGUE_KEY, HITS_FOR_MEDAL, ANSWER_SECONDS, MEDALS_TO_WIN, DICE_MAX, SAVE_KEY, BOARD_LAYOUT, BOARD_SIZE } = window.GameConfig;
+  const { CATS, CAT_KEYS, QUESTION_KEYS, LEAGUE_KEY, HITS_FOR_MEDAL, ANSWER_SECONDS, MEDALS_TO_WIN, DICE_MAX, SAVE_KEY, BOARD_LAYOUT, BOARD_SIZE, squareTitle } = window.GameConfig;
   const ANSWER_MS = ANSWER_SECONDS * 1000;
   // Ventanas del juego que se muestran dentro del área de juego (no sobre toda la página).
   const IN_BOARD_DIALOGS = ['questionDialog', 'infoDialog', 'chooseDialog', 'rocketDialog', 'medalDialog', 'victoryDialog'];
@@ -87,6 +87,9 @@
     react() {},
     victory() {},
     sync() {},
+    rocketArrive: () => Promise.resolve(),
+    rocketLeave: () => Promise.resolve(),
+    steal: () => Promise.resolve(),
   };
   let view3d = null;
   const view = () => view3d || view2D;
@@ -443,6 +446,39 @@
     await runPending(run);
   }
 
+  /**
+   * Modo tester: el jugador en turno salta a la casilla anterior a `index` y
+   * avanza 1, así se ve la llegada y el efecto de esa casilla. Solo al
+   * empezar un turno. Para el Team Rocket, si nadie tiene algo para robar,
+   * le da a un rival una medalla que el jugador en turno no tiene.
+   */
+  async function testSquare(index) {
+    if (!state || state.phase !== 'idle' || busy || !Number.isInteger(index) || !BOARD_LAYOUT[index]) return false;
+    const p = cur();
+    const sq = BOARD_LAYOUT[index];
+    if (sq.type === 'rocket' && !isRacing(p) && !stealOptions(state.current).length) {
+      const cat = CAT_KEYS.find((c) => !p.medals[c]);
+      const rival = state.players.find((_, seat) => seat !== state.current);
+      if (cat && rival) {
+        rival.medals[cat] = true;
+        addLog(`🧪 Prueba: ${rival.name} recibe la Medalla de ${CATS[cat].name} para que haya algo que robar.`, state.current);
+      }
+    }
+    addLog(`🧪 Prueba: ${p.name} va a «${squareTitle(sq)}».`, state.current);
+    p.pos = (index - 1 + BOARD_SIZE) % BOARD_SIZE;
+    const run = gameId;
+    busy = true;
+    state.phase = 'busy';
+    state.lastRoll = 1;
+    state.pending = { type: 'move', steps: 1, depth: 0 };
+    saveGame();
+    renderAll();
+    await delay(700); // la ficha se acomoda en la casilla anterior
+    if (!alive(run)) return true;
+    await runPending(run);
+    return true;
+  }
+
   /** Desafío final en Pueblo Paleta: una pregunta de cualquier categoría. */
   function startFinal() {
     state.phase = 'busy';
@@ -577,8 +613,11 @@
 
       case 'rocket': {
         addLog(`🚀 ${p.name} cae en la casilla del Team Rocket.`, state.current);
+        await view().rocketArrive();
+        if (!alive(run)) return;
         const options = stealOptions(state.current);
         if (!options.length) {
+          view().rocketLeave(false);
           return setInfo(
             'Team Rocket',
             `«¡Prepárense para los problemas!»… pero ningún rival tiene una medalla que ${p.name} no tenga. No hay nada que robar.`,
@@ -907,7 +946,6 @@
     Sound.play(correct ? 'correct' : 'wrong');
     if (outcome.medal === 'new' || outcome.stolen) setTimeout(() => Sound.play('medal'), 350);
     view().react(seat, { correct, medal: outcome.medal === 'new' ? outcome.cat : null });
-    if (outcome.stolen && view().steal) view().steal(seat, pd.thief, pd.cat);
 
     if (outcome.won) {
       // Desafío final superado: victoria inmediata.
@@ -976,8 +1014,10 @@
     if (hostMayAct()) setTimeout(() => $('btnQContinue').focus({ preventScroll: true }), 50);
   }
 
-  function onQuestionContinue() {
-    if (!state) return;
+  let rocketScene = false; // la escena final del Team Rocket se está mostrando
+
+  async function onQuestionContinue() {
+    if (!state || rocketScene) return;
     if (state.phase === 'over') {
       closeOverlay('questionDialog');
       return showVictory();
@@ -985,6 +1025,18 @@
     const pd = state.pending;
     if (!pd || pd.type !== 'question' || !pd.answered) return;
     closeOverlay('questionDialog');
+    if (pd.mode === 'defense') {
+      // Sin ventanas encima: la medalla vuela al ladrón o el globo sale volando.
+      const run = gameId;
+      rocketScene = true;
+      try {
+        if (pd.outcome.stolen) await view().steal(pd.answerer, pd.thief, pd.cat);
+        else await view().rocketLeave(true);
+      } finally {
+        rocketScene = false;
+      }
+      if (!alive(run)) return;
+    }
     if (pd.outcome.stolen) {
       // La medalla robada se celebra como medalla nueva del ladrón (jugador en turno).
       state.pending = { type: 'medal', cat: pd.cat, from: pd.answerer };
@@ -1357,6 +1409,8 @@
     /** true si ese asiento juega desde otro dispositivo. */
     isRemote: (seat) => isRemoteSeat(seat),
     /** fn(seat) → true si ese asiento juega desde otro dispositivo. */
+    /** Modo tester: el jugador en turno va a esa casilla (ver testSquare). */
+    testSquare: (index) => testSquare(index),
     setRemoteSeats(fn) {
       isRemoteSeat = fn;
       if (state) {

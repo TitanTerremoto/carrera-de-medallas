@@ -48,5 +48,49 @@
       "cry": "animation.bulbasaur.cry",
       "sad": "animation.bulbasaur.recoil"
     }
+  },
+  "emolga": {
+    "file": "emolga.glb",
+    "source": "https://cobblemon.tools/pokedex/pokemon/emolga/models/emolga.gltf",
+    "rotationY": 180,
+    "scale": 1,
+    "animations": {
+      "idle": "animation.emolga.ground_idle",
+      "move": "animation.emolga.air_fly",
+      "happy": "animation.emolga.air_idle"
+    }
+  },
+  "noibat": {
+    "file": "noibat.glb",
+    "source": "https://cobblemon.tools/pokedex/pokemon/noibat/models/noibat.gltf",
+    "rotationY": 180,
+    "scale": 1,
+    "animations": {
+      "idle": "animation.noibat.ground_idle",
+      "move": "animation.noibat.air_fly",
+      "cry": "animation.noibat.cry",
+      "happy": "animation.noibat.air_idle"
+    }
+  },
+  "jolteon": {
+    "file": "jolteon.glb",
+    "source": "https://cobblemon.tools/pokedex/pokemon/jolteon/models/jolteon.gltf",
+    "rotationY": 180,
+    "scale": 1,
+    "animations": {
+      "idle": "animation.jolteon.ground_idle"
+    }
+  },
+  "treecko": {
+    "file": "treecko.glb",
+    "source": "https://cobblemon.tools/pokedex/pokemon/treecko/models/treecko.gltf",
+    "rotationY": 180,
+    "scale": 1,
+    "animations": {
+      "idle": "animation.treecko.ground_idle",
+      "move": "animation.treecko.ground_walk",
+      "happy": "animation.treecko.happy",
+      "sad": "animation.treecko.sad"
+    }
   }
 }
