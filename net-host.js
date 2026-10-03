@@ -9,9 +9,16 @@
  *
  * Si un dispositivo se desconecta (o deja de dar latidos), su asiento vuelve
  * a poder jugarse desde esta pantalla hasta que se reconecte con su token.
+ *
+ * Espectadores: pantallas que solo miran (index.html?espectador=CÓDIGO). No
+ * ocupan asiento ni pueden actuar; reciben la vista pública y lo que esta
+ * pantalla presenta (Game.onCast) para reproducirlo igual.
  */
 (function () {
   'use strict';
+
+  // En la pantalla de espectador no hay sala propia.
+  if (window.GameSpectator) return;
 
   const { $, el, toast } = window.Dom;
   const { CREATURES } = window.GameArt;
@@ -21,6 +28,7 @@
 
   const ROOM_KEY = 'carreraMedallas.room.v1';
   const SEATS = 4;
+  const MAX_WATCHERS = 12; // pantallas de espectador a la vez
   const ID_RETRIES = 6; // tras recargar, el servidor tarda en liberar el id anterior
 
   let peer = null;
@@ -53,6 +61,7 @@
   }
 
   const isConnected = (seat) => !!seatConn[seat] && seatConn[seat].open;
+  const watcherCount = () => [...conns].filter((c) => c.watch).length;
 
   function setStatus(kind, text) {
     status = { kind, text };
@@ -148,6 +157,7 @@
     if (!conns.has(conn)) return;
     conns.delete(conn);
     if (conn.open) conn.close();
+    if (conn.watch) renderPanels();
     if (conn.seat != null && seatConn[conn.seat] === conn) {
       const name = Setup.seats()[conn.seat].name || `Jugador ${conn.seat + 1}`;
       toast(`📴 ${name} se desconectó`);
@@ -181,6 +191,18 @@
         return reply(conn, { t: 'pong' });
       case 'join':
         return handleJoin(conn, msg);
+      case 'watch':
+        if (conn.watch) return;
+        if (conn.seat != null) return reply(conn, { t: 'error', msg: 'Este dispositivo ya juega en un asiento.' });
+        if (watcherCount() >= MAX_WATCHERS) {
+          reply(conn, { t: 'error', msg: 'La sala ya tiene el máximo de espectadores.' });
+          setTimeout(() => dropConn(conn), 300);
+          return;
+        }
+        conn.watch = true;
+        sendState(conn);
+        renderPanels();
+        return;
       case 'leave':
         if (conn.seat != null && seatConn[conn.seat] === conn) {
           releaseSeat(conn.seat, { forget: true });
@@ -200,6 +222,7 @@
   }
 
   function handleJoin(conn, msg) {
+    if (conn.watch) return reply(conn, { t: 'error', msg: 'Una pantalla de espectador no puede ocupar un asiento.' });
     const seat = msg.seat;
     const token = typeof msg.token === 'string' && /^[a-z0-9]{8,64}$/.test(msg.token) ? msg.token : null;
     if (!Number.isInteger(seat) || seat < 0 || seat >= SEATS || !token) return reply(conn, { t: 'error', msg: 'Pedido inválido.' });
@@ -255,9 +278,13 @@
     });
   }
 
+  /** Lo que presenta esta pantalla va solo a los espectadores (los celulares no lo necesitan). */
+  function castToWatchers(event) {
+    for (const conn of conns) if (conn.watch) reply(conn, { t: 'cast', e: event });
+  }
+
   // ── Panel de la sala (configuración y barra lateral) ──
-  function copyLink() {
-    const url = Net.controlUrl(code);
+  function copyLink(url) {
     navigator.clipboard.writeText(url).then(
       () => toast('Enlace copiado'),
       (err) => {
@@ -313,9 +340,15 @@
         : null,
       el('div', { class: 'room-link' }, [
         el('input', { class: 'room-link-input', attrs: { type: 'text', readonly: true, value: url, 'aria-label': 'Enlace para jugadores' } }),
-        el('button', { class: 'btn', text: '📋 Copiar', attrs: { type: 'button' }, on: { click: copyLink } }),
+        el('button', { class: 'btn', text: '📋 Copiar', attrs: { type: 'button' }, on: { click: () => copyLink(url) } }),
       ]),
       seatChips(),
+      compact ? null : el('p', { class: 'room-help', text: '👀 Espectadores (para mostrar la partida en otro stream, sin jugar):' }),
+      el('div', { class: 'room-link' }, [
+        el('input', { class: 'room-link-input', attrs: { type: 'text', readonly: true, value: Net.spectatorUrl(code), 'aria-label': 'Enlace para espectadores' } }),
+        el('button', { class: 'btn', text: '👀 Copiar', attrs: { type: 'button', title: 'Copiar enlace para espectadores' }, on: { click: () => copyLink(Net.spectatorUrl(code)) } }),
+      ]),
+      el('p', { class: 'room-help', text: `👀 ${watcherCount()} ${watcherCount() === 1 ? 'espectador' : 'espectadores'} mirando` }),
       compact
         ? null
         : el('button', {
@@ -350,6 +383,7 @@
   // ── Inicio ──
   setInterval(sweepDeadConns, Net.PING_MS);
   Game.onUpdate(scheduleBroadcast);
+  Game.onCast(castToWatchers);
   Setup.onChange(() => {
     renderPanels();
     scheduleBroadcast();

@@ -8,6 +8,7 @@
  *
  * Dispositivo → espectador
  *   { t:'join', seat, token, name, creature }  ocupar o recuperar un asiento
+ *   { t:'watch' }                              mirar sin jugar (pantalla de espectador, spectator.js)
  *   { t:'leave' }                              liberar el asiento
  *   { t:'act', a:'roll'|'answer'|'choose'|'steal'|'continue', i?, cat?, victim? }
  *   { t:'ping' }                               latido (cada PING_MS)
@@ -18,6 +19,8 @@
  *   { t:'kicked' }                             el asiento se abrió en otro dispositivo
  *   { t:'error', msg }                         pedido rechazado (texto para mostrar)
  *   { t:'pong' }                               respuesta al latido
+ *   { t:'cast', e }                            (solo a quien mira) lo que presenta la pantalla
+ *                                              principal: animación, diálogo, sonido o ventana
  *
  * Latido: WebRTC puede dejar una conexión «abierta» que ya no transmite (el
  * celular se bloqueó, cambió de wifi a datos…). Si un lado no oye nada del
@@ -91,5 +94,13 @@
     return url.toString();
   }
 
-  window.NetProtocol = { ROOM_PREFIX, CODE_LENGTH, PING_MS, DEAD_MS, newRoomCode, normalizeCode, newToken, isMessage, controlUrl };
+  /** Enlace para mirar la partida sin jugar (otra pantalla, por ejemplo para otro stream). */
+  function spectatorUrl(code) {
+    const url = new URL('index.html', window.location.href);
+    url.search = `?espectador=${code}`;
+    url.hash = '';
+    return url.toString();
+  }
+
+  window.NetProtocol = { ROOM_PREFIX, CODE_LENGTH, PING_MS, DEAD_MS, newRoomCode, normalizeCode, newToken, isMessage, controlUrl, spectatorUrl };
 })();

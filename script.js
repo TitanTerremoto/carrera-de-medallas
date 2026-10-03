@@ -24,16 +24,87 @@
 (function () {
   'use strict';
 
-  const { $, el, delay, openOverlay, closeOverlay, closeAllOverlays, toast, confirmDialog, isOpen } = window.Dom;
+  // Pantalla de espectador: no corre el motor (spectator.js reproduce la del anfitrión).
+  if (window.GameSpectator) return;
+
+  const { $, el, delay, toast, confirmDialog, isOpen } = window.Dom;
   const { CATS, CAT_KEYS, QUESTION_KEYS, LEAGUE_KEY, HITS_FOR_MEDAL, ANSWER_SECONDS, MEDALS_TO_WIN, DICE_MAX, SAVE_KEY, BOARD_LAYOUT, BOARD_SIZE, squareTitle } = window.GameConfig;
   const ANSWER_MS = ANSWER_SECONDS * 1000;
   // Ventanas del juego que se muestran dentro del área de juego (no sobre toda la página).
   const IN_BOARD_DIALOGS = ['questionDialog', 'infoDialog', 'medalDialog', 'victoryDialog'];
-  const { creatureIcon, categoryIcon, medalIcon, artIcon, pokemonIcon, typeIcons } = window.GameArt;
+  const { categoryIcon, medalIcon } = window.GameArt;
   const Poke = window.PokeData;
   const Board = window.GameBoard;
-  const Sound = window.GameSound;
-  const Talk = window.GameTalk;
+  const EventView = window.GameEventView;
+  const { tokenNode, streakText } = EventView;
+
+  /*
+   * Transmisión a espectadores: lo que esta pantalla presenta (animaciones 3D,
+   * diálogos, sonidos y ventanas) se avisa a los oyentes de onCast (la sala en
+   * línea lo reenvía a las pantallas de espectador, que lo reproducen igual).
+   * Solo datos públicos: nunca la respuesta de una pregunta sin responder.
+   */
+  const castListeners = [];
+  function cast(event) {
+    for (const fn of castListeners) {
+      try {
+        fn(event);
+      } catch (err) {
+        console.error('Error al transmitir a los espectadores:', err);
+      }
+    }
+  }
+
+  const Sound = {
+    play(name) {
+      window.GameSound.play(name);
+      cast({ k: 'sound', name });
+    },
+    cry(id) {
+      window.GameSound.cry(id);
+      cast({ k: 'cry', id });
+    },
+    toggle: () => window.GameSound.toggle(),
+    isEnabled: () => window.GameSound.isEnabled(),
+  };
+
+  const Talk = {
+    say(opts) {
+      cast({
+        k: 'talk',
+        name: opts.name || '',
+        art: opts.art || '',
+        text: String(opts.text),
+        auto: !!opts.auto,
+        narrator: !!opts.narrator,
+        talking: !!opts.onTalk, // el personaje 3D mueve la boca mientras habla
+        // Las opciones viajan como datos (`cast`: qué dibujar), nunca como HTML.
+        choices: (opts.choices || []).map((ch) => ({ label: ch.label, blocked: !!ch.blocked, icon: ch.cast || null })),
+      });
+      return window.GameTalk.say(opts);
+    },
+    close() {
+      window.GameTalk.close();
+      cast({ k: 'talkClose' });
+    },
+    isOpen: () => window.GameTalk.isOpen(),
+  };
+
+  /** Ventanas del juego: además de abrirse aquí, se abren en los espectadores (con la partida de ese momento). */
+  function openOverlay(id) {
+    window.Dom.openOverlay(id);
+    if (IN_BOARD_DIALOGS.includes(id)) cast({ k: 'open', id, game: publicView() });
+  }
+
+  function closeOverlay(id) {
+    window.Dom.closeOverlay(id);
+    if (IN_BOARD_DIALOGS.includes(id)) cast({ k: 'close', id });
+  }
+
+  function closeAllOverlays() {
+    window.Dom.closeAllOverlays();
+    cast({ k: 'closeAll' });
+  }
 
   const STEP_MS = 260;
   const MAX_CHAIN = 3; // máximo de casillas de movimiento encadenadas en un turno
@@ -108,7 +179,36 @@
     characterCry() {},
   };
   let view3d = null;
-  const view = () => view3d || view2D;
+  let lastSyncCast = '';
+
+  /** Lo mínimo que necesita la vista 3D de un espectador para ubicar las fichas. */
+  function castSync() {
+    const mini = state && {
+      phase: state.phase,
+      current: state.current,
+      players: state.players.map((p) => ({ name: p.name, creature: p.creature, color: p.color, pos: p.pos, medals: { ...p.medals } })),
+    };
+    const key = JSON.stringify(mini);
+    if (key === lastSyncCast) return;
+    lastSyncCast = key;
+    cast({ k: 'sync', state: mini });
+  }
+
+  /** La vista activa (3D o 2D); cada pedido también se transmite a los espectadores. */
+  const castingView = new Proxy(
+    {},
+    {
+      get(_, method) {
+        return (...args) => {
+          const v = view3d || view2D;
+          if (method === 'sync') castSync();
+          else cast({ k: 'view', m: method, a: args });
+          return v[method](...args);
+        };
+      },
+    },
+  );
+  const view = () => castingView;
 
   // ═════════════════════ Banco de preguntas ═════════════════════
 
@@ -294,22 +394,6 @@
 
   // ═════════════════════ Renderizado ═════════════════════
 
-  function tokenNode(p, extraClass) {
-    return el('div', { class: `token ${extraClass || ''}`, style: { '--pc': p.color }, attrs: { title: p.name } }, [creatureIcon(p.creature)]);
-  }
-
-  function miniMedals(p, className) {
-    return el(
-      'div',
-      { class: className || 'mini-medals' },
-      CAT_KEYS.map((c) =>
-        el('span', { class: `mini-medal ${p.medals[c] ? 'owned' : ''}`, attrs: { title: `${CATS[c].name}: ${p.medals[c] ? 'obtenida' : 'pendiente'}` } }, [
-          medalIcon(c),
-        ]),
-      ),
-    );
-  }
-
   function renderTokens() {
     squareEls.forEach((sqEl) => sqEl.querySelector('.sq-tokens').replaceChildren());
     state.players.forEach((p, i) => {
@@ -331,33 +415,8 @@
    */
   const readyForMedal = (p) => p.streak >= HITS_FOR_MEDAL;
 
-  function streakText(streak) {
-    if (streak >= HITS_FOR_MEDAL) return `${HITS_FOR_MEDAL} de ${HITS_FOR_MEDAL} · ¡Tu próxima pregunta es por la medalla!`;
-    return `${streak} de ${HITS_FOR_MEDAL}`;
-  }
-
-  function streakPips(streak) {
-    return Array.from({ length: HITS_FOR_MEDAL }, (_, i) => el('span', { class: `pip-streak ${i < streak ? 'on' : ''}` }));
-  }
-
   function renderTurnPanel() {
-    const p = cur();
-    const panel = $('turnPanel');
-    panel.style.setProperty('--pc', p.color);
-    $('turnToken').replaceChildren(tokenNode(p, 'token-lg'));
-    $('turnName').textContent = p.name;
-    $('diceResult').textContent = state.lastRoll ? `Último dado: ${state.lastRoll}` : 'Aún sin lanzar';
-    $('streakPips').replaceChildren(...streakPips(p.streak));
-    $('streakText').textContent = `Aciertos: ${streakText(p.streak)}`;
-    $('streakBox').classList.toggle('hot', readyForMedal(p));
-    $('turnMedals').replaceChildren(
-      ...CAT_KEYS.map((c) =>
-        el('div', { class: `turn-medal ${p.medals[c] ? 'owned' : ''}`, attrs: { title: CATS[c].name } }, [
-          medalIcon(c),
-          el('span', { text: CATS[c].name }),
-        ]),
-      ),
-    );
+    EventView.paintTurnCard(cur(), state.lastRoll);
     const remote = lockedRemote(state.current);
     const canRoll = state.phase === 'idle' && !busy && !remote && !hasAllMedals(cur());
     $('btnRoll').disabled = !canRoll;
@@ -379,30 +438,11 @@
   }
 
   function renderPlayers() {
-    // Los entrenadores se listan en el orden en que juegan.
-    $('playersList').replaceChildren(
-      ...turnOrder().map((i) => [state.players[i], i]).map(([p, i]) =>
-        el('li', { class: `player-row ${i === state.current && state.phase !== 'over' ? 'current' : ''}`, style: { '--pc': p.color } }, [
-          tokenNode(p),
-          el('div', { class: 'player-info' }, [
-            el('strong', { class: 'player-name', text: p.name }),
-            el('span', { class: 'player-meta', text: `${readyForMedal(p) ? '🏅 Por la medalla' : `Aciertos ${p.streak}/${HITS_FOR_MEDAL}`} · ${medalCount(p)}/${MEDALS_TO_WIN} medallas` }),
-            p.skipNext ? el('span', { class: 'player-flag', text: 'Pierde el próximo turno' }) : null,
-            hasAllMedals(p) ? el('span', { class: 'player-flag race', text: '🏆 Desafío de la Liga' }) : null,
-          ]),
-          miniMedals(p),
-        ]),
-      ),
-    );
+    EventView.paintPlayers(state.players, turnOrder(), state.current, state.phase);
   }
 
   function renderLog() {
-    const recent = state.log.slice(-6).reverse();
-    $('logList').replaceChildren(
-      ...recent.map((entry) =>
-        el('li', { style: entry.p != null ? { '--pc': state.players[entry.p].color } : {}, class: entry.p != null ? 'by-player' : '' }, [entry.t]),
-      ),
-    );
+    EventView.paintLog(state.log.slice(-6), state.players);
   }
 
   function renderAll() {
@@ -726,7 +766,7 @@
       renderTokens();
       view2D.step(seat);
       Sound.play('step');
-      await Promise.all([delay(STEP_MS), view3d ? view3d.step(seat, p.pos, mew ? 0 : total - k - 1) : null]);
+      await Promise.all([delay(STEP_MS), view3d ? view().step(seat, p.pos, mew ? 0 : total - k - 1) : null]);
       if (!alive(run)) return false;
       if (mew) {
         const gift = await mewGift(run, total - k - 1, depth);
@@ -916,10 +956,7 @@
   function showInfo() {
     const pd = state.pending;
     Sound.play('special');
-    $('infoTitle').textContent = pd.title;
-    $('infoText').textContent = pd.text;
-    const icon = pd.icon && pd.icon.medal ? medalIcon(pd.icon.medal) : artIcon(pd.icon && pd.icon.art);
-    $('infoIcon').replaceChildren(icon);
+    EventView.paintInfo(pd);
     renderAll();
     openOverlay('infoDialog');
   }
@@ -949,7 +986,7 @@
       return;
     }
     const allowed = choosableCats(p);
-    const choices = CAT_KEYS.map((c) => ({ value: c, label: CATS[c].name, node: categoryIcon(c), blocked: !allowed.includes(c) }));
+    const choices = CAT_KEYS.map((c) => ({ value: c, label: CATS[c].name, node: categoryIcon(c), cast: { cat: c }, blocked: !allowed.includes(c) }));
     const ask = readyForMedal(p) ? '¡Tu próxima pregunta es por la medalla! ¿De qué categoría la quieres?' : '¿De qué categoría quieres tu pregunta?';
     const cat = await characterSays('chansey', `¡Bienvenido al Centro Pokémon, ${p.name}! ${ask}`, choices);
     applyLocks();
@@ -1067,7 +1104,7 @@
     const choices = pd.options.map((o) => {
       const v = state.players[o.seat];
       const node = el('span', { class: 'talk-choice-player', style: { '--pc': v.color } }, [tokenNode(v), el('span', { class: 'rocket-medals' }, o.cats.map((c) => medalIcon(c)))]);
-      return { value: o.seat, label: v.name, node };
+      return { value: o.seat, label: v.name, node, cast: { seat: o.seat, medals: [...o.cats] } };
     });
     const victim = await meowthSays('Te conseguimos una medalla que te falta… ¿A quién se la quitamos, miau?', choices);
     applyLocks();
@@ -1183,56 +1220,10 @@
     return idx === 0 ? q.correct : q.wrong[idx - 1];
   }
 
-  function renderQuestionStreak(pd, p) {
-    const box = $('qStreak');
-    if (pd.mode === 'defense') {
-      box.replaceChildren(el('span', { class: 'q-streak-text', text: `🛡 ${p.name} defiende su Medalla de ${CATS[pd.cat].name}: si acierta, la conserva; si falla, se la lleva ${state.players[pd.thief].name}.` }));
-    } else if (pd.mode === 'final') {
-      box.replaceChildren(el('span', { class: 'q-streak-text', text: '🏆 Desafío de la Liga Pokémon: si aciertas, ¡eres Campeón! Si fallas, vuelves a intentarlo en tu próximo turno.' }));
-    } else if (pd.mode === 'medal') {
-      box.replaceChildren(
-        el('span', { class: 'q-streak-text', text: `Pregunta especial: si aciertas ganas la Medalla de ${CATS[pd.cat].name}. No cambia tus aciertos (${p.streak} de ${HITS_FOR_MEDAL}).` }),
-      );
-    } else if (pd.forMedal) {
-      box.replaceChildren(el('span', { class: 'q-streak-text', text: `🏅 Pregunta por la medalla: si aciertas, ganas la Medalla de ${CATS[pd.cat].name}. Acierte o falle, tus aciertos vuelven a 0.` }));
-    } else {
-      box.replaceChildren(el('span', { class: 'streak-pips' }, streakPips(p.streak)), el('span', { class: 'q-streak-text', text: `Aciertos: ${streakText(p.streak)} · un error no los borra.` }));
-    }
-  }
-
   function showQuestion() {
     const pd = state.pending;
-    const q = BANK[pd.cat][pd.qi];
-    const p = state.players[actingSeat()]; // quien responde (la víctima, en una defensa)
-    const cat = CATS[pd.cat];
     renderAll();
-    // Pregunta común: la ventana va arriba y la ficha se ve abajo (plano cercano).
-    $('questionDialog').classList.toggle('q-top', pd.mode === 'normal');
-
-    $('questionDialog').style.setProperty('--cat', cat.color);
-    $('questionDialog').classList.toggle('q-medal-mode', pd.mode !== 'normal');
-    $('qIcon').replaceChildren(pd.mode === 'medal' || pd.mode === 'defense' ? medalIcon(pd.cat) : categoryIcon(pd.cat));
-    $('qMode').textContent = pd.forMedal ? '🏅 ¡Pregunta por la medalla!' : { medal: '🏅 Casilla de medalla directa', final: '🏆 Desafío final', defense: '🚀 ¡Ataque del Team Rocket!' }[pd.mode] || 'Pregunta';
-    $('qCat').textContent = pd.cat === 'habilidades' ? 'Habilidades y movimientos' : cat.name;
-    $('qPlayer').replaceChildren(tokenNode(p), el('span', { text: p.name }));
-    $('qText').textContent = q.q;
-    // Artwork de los Pokémon nombrados en el enunciado (nunca de las opciones).
-    $('qArt').replaceChildren(...Poke.findPokemon(q.q).slice(0, 3).map((n) => pokemonIcon(Poke.POKEMON[n], 'q-art-img')));
-    $('qReveal').replaceChildren();
-    renderQuestionStreak(pd, p);
-
-    const letters = ['A', 'B', 'C', 'D'];
-    $('qOptions').replaceChildren(
-      ...pd.order.map((optIdx, i) =>
-        el('button', { class: 'q-option', attrs: { type: 'button', 'data-i': i }, on: { click: () => hostMayAct() && answerQuestion(i) } }, [
-          el('span', { class: 'q-letter', text: letters[i] }),
-          ...typeIcons(optionText(q, optIdx)),
-          el('span', { class: 'q-option-text', text: optionText(q, optIdx) }),
-        ]),
-      ),
-    );
-    $('qFeedback').hidden = true;
-    $('questionDialog').querySelector('.question-card').classList.remove('q-answered');
+    EventView.paintQuestion(publicPending(), state.players, state.current, (i) => hostMayAct() && answerQuestion(i));
     if (pd.answered) showAnswered();
     applyLocks();
     openOverlay('questionDialog');
@@ -1245,18 +1236,13 @@
   let lastTickSecond = null;
   function checkAnswerTimer() {
     const pd = state && state.pending;
-    const box = $('qTimer');
     if (!pd || pd.type !== 'question' || pd.answered || !pd.deadline) {
-      box.hidden = true;
+      EventView.paintTimer(null);
       lastTickSecond = null;
       return;
     }
     const left = Math.max(0, pd.deadline - Date.now());
-    const secs = Math.ceil(left / 1000);
-    box.hidden = false;
-    box.classList.toggle('urgent', secs <= 5);
-    $('qTimerFill').style.width = `${(left / ANSWER_MS) * 100}%`;
-    $('qTimerText').textContent = `⏱ ${secs} s`;
+    const secs = EventView.paintTimer(left);
     if (secs <= 5 && secs > 0 && secs !== lastTickSecond) Sound.play('tick');
     lastTickSecond = secs;
     if (left <= 0) answerQuestion(null);
@@ -1369,30 +1355,8 @@
 
   /** Muestra la corrección: elegida, correcta, explicación y resultado. */
   function showAnswered() {
-    const pd = state.pending;
-    const q = BANK[pd.cat][pd.qi];
-    const o = pd.outcome;
-    $('qOptions').querySelectorAll('.q-option').forEach((btn, i) => {
-      btn.disabled = true;
-      const isRight = pd.order[i] === 0;
-      btn.classList.toggle('correct', isRight);
-      btn.classList.toggle('chosen', i === pd.chosen);
-      btn.classList.toggle('wrong', i === pd.chosen && !isRight);
-      if (isRight) btn.setAttribute('aria-label', `${btn.textContent} (respuesta correcta)`);
-    });
-    renderQuestionStreak(pd, state.players[actingSeat()]);
-    $('qVerdict').textContent = o.correct ? '✔ ¡Correcto!' : o.timeout ? `⏰ ¡Se acabó el tiempo! La respuesta era: ${q.correct}` : `✘ Incorrecto. La respuesta era: ${q.correct}`;
-    $('qTimer').hidden = true;
-    $('qVerdict').className = o.correct ? 'ok' : 'bad';
-    $('qExplain').textContent = q.explain || '';
-    // Si la respuesta es un Pokémon, aparece su artwork al revelarla.
-    const reveal = Poke.exactPokemon(q.correct);
-    $('qReveal').replaceChildren(...(reveal ? [pokemonIcon(Poke.POKEMON[reveal], 'q-reveal-img')] : []));
-    $('qOutcome').textContent = outcomeMessage(pd);
-    $('qOutcome').classList.toggle('medal-line', !!o.medal || !!o.won || !!o.stolen || !!o.defended);
-    $('btnQContinue').textContent = o.won ? '🏆 Ver celebración' : 'Continuar ➜';
-    $('qFeedback').hidden = false;
-    $('questionDialog').querySelector('.question-card').classList.add('q-answered');
+    EventView.paintAnswered(publicPending(), state.players, state.current);
+    cast({ k: 'answered', game: publicView() });
     applyLocks();
     if (hostMayAct()) setTimeout(() => $('btnQContinue').focus({ preventScroll: true }), 50);
   }
@@ -1449,11 +1413,7 @@
     const pd = state.pending;
     const p = cur();
     renderAll();
-    $('medalBig').replaceChildren(medalIcon(pd.cat));
-    $('medalTitle').textContent = `¡${CATS[pd.cat].badgeName}!`;
-    $('medalText').textContent = (hasAllMedals(p)
-      ? `Medalla de ${CATS[pd.cat].name}. ¡${p.name} tiene las ${MEDALS_TO_WIN} medallas! Ahora enfrenta a Lance en el desafío de la Liga Pokémon.`
-      : `Medalla de ${CATS[pd.cat].name}. ${p.name} tiene ${medalCount(p)} de las ${MEDALS_TO_WIN} que necesita.`);
+    EventView.paintMedal(pd.cat, p);
     Sound.cry(p.creature);
     openOverlay('medalDialog');
   }
@@ -1482,39 +1442,14 @@
     Sound.cry(p.creature);
     if (view3d) {
       // Primero se ve el festejo en el tablero 3D; después, la ventana.
-      view3d.victory(state.winner);
+      view().victory(state.winner);
       Sound.play('victory');
       await delay(2600);
       if (run !== gameId) return;
     }
-    $('victoryToken').replaceChildren(tokenNode(p, 'token-xl'));
-    $('victoryTitle').textContent = p.name;
-    $('victoryDialog').style.setProperty('--pc', p.color);
-    $('victoryMedals').replaceChildren(
-      ...CAT_KEYS.filter((c) => p.medals[c]).map((c) => el('div', { class: 'victory-medal' }, [medalIcon(c), el('span', { text: CATS[c].name })])),
-    );
-    launchConfetti();
+    EventView.paintVictory(p);
     if (!view3d) Sound.play('victory');
     openOverlay('victoryDialog');
-  }
-
-  function launchConfetti() {
-    const box = $('confetti');
-    const colors = [...CAT_KEYS.map((c) => CATS[c].color), '#f8c630', '#ffffff'];
-    box.replaceChildren(
-      ...Array.from({ length: 90 }, () =>
-        el('span', {
-          class: 'confetti-piece',
-          style: {
-            left: `${Math.random() * 100}%`,
-            background: colors[Math.floor(Math.random() * colors.length)],
-            'animation-delay': `${(Math.random() * 1.8).toFixed(2)}s`,
-            'animation-duration': `${(2.6 + Math.random() * 2).toFixed(2)}s`,
-            transform: `rotate(${Math.floor(Math.random() * 360)}deg)`,
-          },
-        }),
-      ),
-    );
   }
 
   // ═════════════════════ Pantallas y partida ═════════════════════
@@ -1832,13 +1767,14 @@
             medal: pd.outcome.medal,
             won: pd.outcome.won,
             stolen: !!pd.outcome.stolen,
+            defended: !!pd.outcome.defended,
             message: outcomeMessage(pd),
           },
         });
       }
       return view;
     }
-    if (pd.type === 'info') return { type: 'info', title: pd.title, text: pd.text };
+    if (pd.type === 'info') return { type: 'info', title: pd.title, text: pd.text, icon: pd.icon || null };
     if (pd.type === 'rocket') return { type: 'rocket', victim: pd.victim ?? null, options: pd.options.map((o) => ({ seat: o.seat, cats: [...o.cats] })) };
     if (pd.type === 'medal') return { type: 'medal', cat: pd.cat };
     if (pd.type === 'choose') return { type: 'choose', chosen: pd.chosen || null };
@@ -1867,6 +1803,8 @@
       })),
       pending: publicPending(),
       log: state.log.slice(-5).map((l) => l.t),
+      // Para la pantalla de espectador: los últimos eventos con el asiento de quien los hizo.
+      recent: state.log.slice(-6).map((l) => ({ t: l.t, p: l.p })),
     };
   }
 
@@ -1876,6 +1814,10 @@
     act,
     onUpdate(fn) {
       listeners.push(fn);
+    },
+    /** fn(evento): lo que se presenta en esta pantalla, para los espectadores. */
+    onCast(fn) {
+      castListeners.push(fn);
     },
     /** Registra la vista 3D (view3d/). Si falla al cargar, sigue la 2D. */
     attachView(v) {

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pokémon Party</title>
     <meta name="description" content="Juego de mesa de preguntas para 4 jugadores, en una pantalla o desde los celulares." />
-    <link rel="stylesheet" href="styles.css?v=71" />
+    <link rel="stylesheet" href="styles.css?v=72" />
   </head>
   <body>
     <header class="topbar">
@@ -411,32 +411,36 @@
       Scripts clásicos (no módulos) para que el juego local funcione también
       abriendo el archivo directamente. Orden: librería de conexión → datos →
       configuración → arte → utilidades → sonido → configuración de jugadores →
-      tablero → juego → sala en línea → vista de grabación.
+      tablero → diálogos → protocolo → ventanas → espectador → juego → sala en
+      línea → vista de grabación.
     -->
     <script src="vendor/peerjs.min.js"></script>
     <!-- Preguntas: base escrita a mano + bancos generados desde datos de PokeAPI (tools/question-gen/) -->
-    <script src="questions.js?v=71"></script>
-    <script src="questions-tipos.js?v=71"></script>
-    <script src="questions-pokedex.js?v=71"></script>
-    <script src="questions-habilidades.js?v=71"></script>
-    <script src="questions-cambalache.js?v=71"></script>
-    <script src="config.js?v=71"></script>
-    <script src="pokedata.js?v=71"></script>
-    <script src="art.js?v=71"></script>
-    <script src="dom.js?v=71"></script>
-    <script src="sound.js?v=71"></script>
-    <script src="setup.js?v=71"></script>
-    <script src="board.js?v=71"></script>
-    <script src="talk.js?v=71"></script>
-    <script src="script.js?v=71"></script>
-    <script src="net-protocol.js?v=71"></script>
-    <script src="net-host.js?v=71"></script>
-    <script src="recording.js?v=71"></script>
-    <script src="tester.js?v=71"></script>
+    <script src="questions.js?v=72"></script>
+    <script src="questions-tipos.js?v=72"></script>
+    <script src="questions-pokedex.js?v=72"></script>
+    <script src="questions-habilidades.js?v=72"></script>
+    <script src="questions-cambalache.js?v=72"></script>
+    <script src="config.js?v=72"></script>
+    <script src="pokedata.js?v=72"></script>
+    <script src="art.js?v=72"></script>
+    <script src="dom.js?v=72"></script>
+    <script src="sound.js?v=72"></script>
+    <script src="setup.js?v=72"></script>
+    <script src="board.js?v=72"></script>
+    <script src="talk.js?v=72"></script>
+    <script src="net-protocol.js?v=72"></script>
+    <script src="event-view.js?v=72"></script>
+    <!-- Con ?espectador=CÓDIGO, esta página solo mira una sala: spectator.js reemplaza al motor -->
+    <script src="spectator.js?v=72"></script>
+    <script src="script.js?v=72"></script>
+    <script src="net-host.js?v=72"></script>
+    <script src="recording.js?v=72"></script>
+    <script src="tester.js?v=72"></script>
 
     <!--
       Tablero 3D: módulo ES (necesita servirse por http/https; abierto como archivo queda el 2D).
-      El "?v=71" de los archivos propios obliga a descargar la versión nueva al publicar
+      El "?v=72" de los archivos propios obliga a descargar la versión nueva al publicar
       cambios: hay que subir ese número (aquí, en los <script> y en control.html) en cada versión.
     -->
     <script type="importmap">
@@ -444,21 +448,21 @@
         "imports": {
           "three": "./vendor/three/three.module.js",
           "three/addons/": "./vendor/three/addons/",
-          "./view3d/tween.js": "./view3d/tween.js?v=71",
-          "./view3d/textures.js": "./view3d/textures.js?v=71",
-          "./view3d/scene.js": "./view3d/scene.js?v=71",
-          "./view3d/pieces.js": "./view3d/pieces.js?v=71",
-          "./view3d/fx.js": "./view3d/fx.js?v=71",
-          "./view3d/rocket.js": "./view3d/rocket.js?v=71",
-          "./view3d/rocketShot.js": "./view3d/rocketShot.js?v=71",
-          "./view3d/sceneShot.js": "./view3d/sceneShot.js?v=71",
-          "./view3d/sceneDirector.js": "./view3d/sceneDirector.js?v=71",
-          "./view3d/visitors.js": "./view3d/visitors.js?v=71",
-          "./view3d/scenery.js": "./view3d/scenery.js?v=71",
-          "./view3d/townmodels.js": "./view3d/townmodels.js?v=71"
+          "./view3d/tween.js": "./view3d/tween.js?v=72",
+          "./view3d/textures.js": "./view3d/textures.js?v=72",
+          "./view3d/scene.js": "./view3d/scene.js?v=72",
+          "./view3d/pieces.js": "./view3d/pieces.js?v=72",
+          "./view3d/fx.js": "./view3d/fx.js?v=72",
+          "./view3d/rocket.js": "./view3d/rocket.js?v=72",
+          "./view3d/rocketShot.js": "./view3d/rocketShot.js?v=72",
+          "./view3d/sceneShot.js": "./view3d/sceneShot.js?v=72",
+          "./view3d/sceneDirector.js": "./view3d/sceneDirector.js?v=72",
+          "./view3d/visitors.js": "./view3d/visitors.js?v=72",
+          "./view3d/scenery.js": "./view3d/scenery.js?v=72",
+          "./view3d/townmodels.js": "./view3d/townmodels.js?v=72"
         }
       }
     </script>
-    <script type="module" src="view3d/view3d.js?v=71"></script>
+    <script type="module" src="view3d/view3d.js?v=72"></script>
   </body>
 </html>

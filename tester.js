@@ -12,6 +12,9 @@
 (function () {
   'use strict';
 
+  // En la pantalla de espectador no hay partida propia que probar.
+  if (window.GameSpectator) return;
+
   const { $, el, toast } = window.Dom;
   const { CATS, CAT_KEYS, MEDALS_TO_WIN, HITS_FOR_MEDAL, BOARD_LAYOUT, squareTitle } = window.GameConfig;
   const { CREATURES } = window.GameArt;

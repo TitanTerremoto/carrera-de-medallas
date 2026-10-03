@@ -2897,3 +2897,35 @@ body.has-3d #questionDialog.in-board.q-top {
   width: 100%;
   height: 100%;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Pantalla de espectador (index.html?espectador=CÓDIGO): solo mira.
+   Se ocultan los controles de juego y de configuración.
+   ═══════════════════════════════════════════════════════════ */
+body.spectator #btnTester,
+body.spectator #btnRestart,
+body.spectator #btnSetup,
+body.spectator #roomBadge,
+body.spectator #btnRoll,
+body.spectator #btnTakeover,
+body.spectator .remote-wait,
+body.spectator .online-card,
+body.spectator #btnQContinue,
+body.spectator #btnInfoOk,
+body.spectator #btnMedalOk,
+body.spectator #btnPlayAgain,
+body.spectator #btnBackSetup {
+  display: none !important;
+}
+
+/* Las opciones de la pregunta y de los personajes se ven, pero no se tocan. */
+body.spectator .talk-box,
+body.spectator .q-option {
+  pointer-events: none;
+}
+
+.spectator-wait {
+  max-width: 640px;
+  margin: 48px auto;
+  text-align: center;
+}

@@ -161,6 +161,28 @@ cámara *debajo* de la fuente del juego, ubicadas en los huecos. Con
 (aunque OBS inyecte `overflow: hidden`) y la vista de grabación entra completa
 en 1920 × 1080 sin barras de desplazamiento.
 
+## Espectadores (otros streams)
+
+Con la sala en línea abierta, la pantalla principal muestra también un
+**enlace para espectadores** (`index.html?espectador=CÓDIGO`, botón «👀
+Copiar»). Quien lo abre ve la partida igual que la pantalla principal y en
+vivo: tablero 3D con sus animaciones, Meowth, Chansey, los líderes, el
+«¿Listo?», las preguntas con su reloj, las correcciones, los sonidos y la
+celebración. Sirve para que cada streamer muestre la partida en su propio
+stream, también con la **vista de grabación** (cámaras transparentes o verde;
+agregar `&vista=grabacion` al enlace la abre directamente) y como Fuente de
+navegador de OBS a 1920 × 1080.
+
+- Solo mira: no ocupa asiento ni puede tocar nada. Los celulares de los
+  jugadores siguen usando su propio enlace.
+- Recibe únicamente lo público: nunca ve la respuesta antes que los
+  jugadores.
+- Si se conecta (o recarga) a mitad de partida, se pone al día con lo que
+  está a la vista. Hasta 12 espectadores a la vez; la pantalla principal
+  muestra cuántos hay.
+- Debe estar abierta la pantalla principal con la sala en línea: es la que
+  manda todo.
+
 ## Cámara 3D
 
 - **Automática:** al empezar cada turno, la cámara baja hasta la ficha y
@@ -263,6 +285,8 @@ usan 180. Si un modelo falta o no carga, se usa la figura de juguete incluida
 | `board.js` | Tablero 2D, dado del panel y leyenda. |
 | `view3d/` | Tablero 3D: escena, fichas, efectos, cámara e interpolaciones. |
 | `net-protocol.js` · `net-host.js` | Protocolo y sala en línea (lado de la pantalla principal). |
+| `event-view.js` | Ventanas del juego (pregunta, aviso, medalla, campeón, panel del turno) dibujadas desde la vista pública; las usan la pantalla principal y la de espectador. |
+| `spectator.js` | Pantalla de espectador: se conecta a la sala y reproduce lo que transmite la pantalla principal. |
 | `recording.js` | Vista de grabación con los espacios de cámara. |
 | `tester.js` | Modo tester: bots que juegan solos. |
 | `setup.js` | Configuración de jugadores (local o desde dispositivos). |
