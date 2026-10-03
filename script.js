@@ -258,8 +258,12 @@
       if (!okOrder) s.order = seats;
       // Al retomar, la pregunta abierta vuelve a tener el tiempo completo.
       if (s.pending && s.pending.type === 'question' && !s.pending.answered) {
-        s.pending.deadline = Date.now() + ANSWER_MS;
-        s.pending.hold = false;
+        // Si esperaba el «¡Listo!», lo vuelve a pedir; si ya estaba a la vista, tiempo completo.
+        if (s.pending.awaitingReady) s.pending.hold = true;
+        else {
+          s.pending.deadline = Date.now() + ANSWER_MS;
+          s.pending.hold = false;
+        }
       }
       // Si el banco cambió y la pregunta pendiente ya no existe, se saca otra.
       if (s.pending && s.pending.type === 'question' && !BANK[s.pending.cat]?.[s.pending.qi]) {
@@ -624,7 +628,7 @@
     await characterSays('lance', `¡Draaa! Soy Dragonite, el compañero de Lance, Campeón de la Liga Pokémon. ¡${p.name}, juntaste las ${MEDALS_TO_WIN} medallas! Responde bien y el título será tuyo.`);
     if (!alive(run) || state.pending !== pd) return;
     Talk.close();
-    releaseQuestion();
+    askReady();
   }
 
   /** Cierra el turno: con las 4 medallas recién juntadas, Lance llega al instante. */
@@ -686,7 +690,7 @@
       }
       case 'question':
         // Pregunta retenida (un personaje estaba hablando): al retomar, se muestra ya.
-        return pd.hold ? releaseQuestion() : showQuestion();
+        return pd.hold ? askReady() : showQuestion();
       case 'choose':
         return showChooser();
       case 'rocket':
@@ -759,7 +763,10 @@
         }
         view().announce(readyForMedal(p) ? `🏅 ¡Pregunta por la medalla de ${CATS[sq.cat].name}!` : `❓ ¡Pregunta de ${CATS[sq.cat].name}!`, CATS[sq.cat].color);
         view().questionShot(state.current);
-        return openQuestion(sq.cat, 'normal', null, ANNOUNCE_MS);
+        openQuestion(sq.cat, 'normal', { hold: true });
+        await delay(900); // el cartel y la cámara antes del «¿Listo?»
+        if (!alive(run)) return;
+        return askReady();
 
       case 'medal': {
         const leader = LEADERS[sq.cat];
@@ -782,7 +789,7 @@
         await characterSays(leader.kind, leader.line(p.name, CATS[sq.cat].badgeName));
         if (!alive(run) || state.pending !== pd) return;
         Talk.close();
-        return releaseQuestion();
+        return askReady();
       }
 
       case 'move': {
@@ -965,7 +972,8 @@
     if (!alive(run) || state.pending !== pd) return;
     Talk.close();
     view().visitorLeave();
-    openQuestion(cat, 'normal');
+    openQuestion(cat, 'normal', { hold: true });
+    askReady();
   }
 
   /**
@@ -1087,22 +1095,20 @@
     await meowthSays(`¡Buena elección! ${v.name}, si respondes bien, conservas tu Medalla de ${CATS[cat].name}. Si no… ¡es nuestra, miau!`);
     if (!alive(run) || state.pending !== pd) return;
     Talk.close();
-    openQuestion(cat, 'defense', { answerer: seat, thief: state.current });
+    openQuestion(cat, 'defense', { answerer: seat, thief: state.current, hold: true });
+    askReady();
   }
 
   // ═════════════════════ Preguntas ═════════════════════
 
-  /** Pausa entre el anuncio de la casilla y la ventana de la pregunta (la cámara sube mientras tanto). */
-  const ANNOUNCE_MS = 900;
-
   /**
    * Abre una pregunta. `extra` permite que responda otro jugador (defensa del
-   * Team Rocket: { answerer, thief }). `lead`: la pregunta queda creada y
-   * guardada ya (recargar no la pierde), pero la ventana aparece `lead` ms
-   * después y el reloj empieza a correr recién entonces.
+   * Team Rocket: { answerer, thief }). Con `extra.hold` la pregunta queda
+   * creada y guardada ya (recargar no la pierde), pero sin ventana ni reloj
+   * hasta que el jugador dice «¡Listo!» (askReady → releaseQuestion).
    */
-  function openQuestion(cat, mode, extra, lead = 0) {
-    const hold = !!(extra && extra.hold); // un personaje habla antes: sin reloj ni ventana hasta releaseQuestion()
+  function openQuestion(cat, mode, extra) {
+    const hold = !!(extra && extra.hold);
     const qi = drawQuestion(cat);
     state.pending = {
       type: 'question',
@@ -1114,19 +1120,53 @@
       answered: false,
       chosen: null,
       outcome: null,
-      deadline: hold ? null : Date.now() + lead + ANSWER_MS, // se responde dentro de ANSWER_SECONDS (tras el anuncio)
+      deadline: hold ? null : Date.now() + ANSWER_MS, // se responde dentro de ANSWER_SECONDS
       ...(extra || {}),
       hold,
     };
     saveGame();
     if (hold) return notify();
-    if (!lead) return showQuestion();
-    const pd = state.pending;
+    return showQuestion();
+  }
+
+  /** Nombre de la pregunta que viene, para el «¿Listo?». */
+  function questionLabel(pd) {
+    const cat = CATS[pd.cat].name;
+    if (pd.mode === 'final') return '🏆 Desafío de la Liga Pokémon';
+    if (pd.mode === 'medal') return `🏅 Medalla directa: ${cat}`;
+    if (pd.mode === 'defense') return `🛡 Defensa de la Medalla de ${cat}`;
+    return pd.forMedal ? `🏅 Pregunta por la medalla de ${cat}` : `❓ Pregunta de ${cat}`;
+  }
+
+  /**
+   * «¿Listo?»: antes de cada pregunta suena una musiquita y quien responde
+   * confirma (en vivo, para leerla con calma). Desde el celular, con su botón.
+   */
+  async function askReady() {
+    const pd = state && state.pending;
+    if (!pd || pd.type !== 'question' || !pd.hold) return;
     const run = gameId;
-    notify();
-    return delay(lead).then(() => {
-      if (alive(run) && state.pending === pd) showQuestion();
-    });
+    const p = state.players[actingSeat()];
+    pd.awaitingReady = true;
+    saveGame();
+    renderAll();
+    Sound.play('suspense');
+    const answer = Talk.say({ text: `${questionLabel(pd)}. ${p.name}, ¿estás listo?`, narrator: true, choices: [{ value: true, label: '✅ ¡Listo!' }] });
+    applyLocks(); // si responde desde su celular, el botón de esta pantalla queda bloqueado
+    const ok = await answer;
+    if (ok == null || !alive(run) || state.pending !== pd) return;
+    if (hostMayAct()) confirmReady();
+  }
+
+  /** El jugador está listo: suena el «¡ya!», aparece la pregunta y corre el reloj. */
+  function confirmReady() {
+    const pd = state && state.pending;
+    if (!pd || pd.type !== 'question' || !pd.hold) return false;
+    pd.awaitingReady = false;
+    Talk.close();
+    Sound.play('go');
+    releaseQuestion();
+    return true;
   }
 
   /** Muestra la pregunta retenida y pone a correr el reloj. */
@@ -1279,7 +1319,7 @@
 
     addLog(`${p.name} ${correct ? 'acierta' : 'falla'} (${catName}${pd.mode === 'final' ? ', desafío final' : pd.mode === 'defense' ? ', defensa' : ''}).`, seat);
     if (outcome.medal === 'new') addLog(`🏅 ${p.name} gana la ${CATS[outcome.cat].badgeName} (${CATS[outcome.cat].name}).`, seat);
-    if (outcome.defended) addLog(`🛡 ${p.name} defiende su Medalla de ${catName}. ¡El Team Rocket sale volando!`, seat);
+    if (outcome.defended) addLog(`🛡 ${p.name} defiende su Medalla de ${catName}. ¡El Equipo Rocket ha sido vencido otra vez!`, seat);
     if (outcome.stolen) addLog(`🚀 ${state.players[pd.thief].name} le roba la Medalla de ${catName} a ${p.name}.`, pd.thief);
     if (outcome.reachedGoal) {
       const who = pd.mode === 'defense' ? pd.thief : seat;
@@ -1307,7 +1347,7 @@
     if (pd.mode === 'defense') {
       const victim = state.players[pd.answerer].name;
       const thief = state.players[pd.thief].name;
-      if (o.correct) return `¡${victim} defendió su Medalla de ${catName}! ¡El Team Rocket sale volando otra vez!`;
+      if (o.correct) return `¡${victim} defendió su Medalla de ${catName}! ¡El Equipo Rocket ha sido vencido otra vez!`;
       return `¡El Team Rocket se lleva la Medalla de ${catName} de ${victim} para ${thief}!${o.reachedGoal ? ` ¡${thief} ya tiene las ${MEDALS_TO_WIN} medallas: a Pueblo Paleta!` : ''}`;
     }
     if (pd.mode === 'final') {
@@ -1395,7 +1435,7 @@
         Talk.close();
         await view().rocketLeave(true);
         if (!alive(run)) return;
-        await Talk.say({ text: '¡El Team Rocket sale volando otra vez!', auto: true, narrator: true });
+        await Talk.say({ text: '¡El Equipo Rocket ha sido vencido otra vez!', auto: true, narrator: true });
       }
     } finally {
       rocketScene = false;
@@ -1704,7 +1744,7 @@
     // turno o quien respondió; todo lo demás, solo el jugador en turno.
     const answerSeat = actingSeat();
     const allowed =
-      action.type === 'answer' ? seat === answerSeat
+      action.type === 'answer' || action.type === 'ready' ? seat === answerSeat
         : action.type === 'continue' ? seat === state.current || seat === answerSeat
           : seat === state.current;
     if (!allowed) return false;
@@ -1721,6 +1761,9 @@
         if (state.phase !== 'idle' || busy) return false;
         rollDice();
         return true;
+      case 'ready':
+        if (!pd || pd.type !== 'question' || !pd.hold || !pd.awaitingReady) return false;
+        return confirmReady();
       case 'answer':
         if (!pd || pd.type !== 'question' || pd.answered || pd.hold) return false;
         if (!Number.isInteger(action.i) || action.i < 0 || action.i > 3) return false;
@@ -1755,7 +1798,11 @@
     const pd = state.pending;
     if (!pd) return null;
     // Pregunta retenida: el dispositivo espera a que el personaje termine de hablar.
-    if (pd.type === 'question' && pd.hold) return { type: 'scene' };
+    if (pd.type === 'question' && pd.hold) {
+      return pd.awaitingReady
+        ? { type: 'ready', label: questionLabel(pd), answerer: pd.answerer ?? state.current }
+        : { type: 'scene' };
+    }
     if (pd.type === 'question') {
       const q = BANK[pd.cat][pd.qi];
       const view = {

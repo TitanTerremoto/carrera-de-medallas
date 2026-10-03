@@ -59,6 +59,7 @@
   /** Quién actúa: la víctima mientras responde una defensa del Team Rocket. */
   function actorOf(v) {
     const pd = v.pending;
+    if (pd && pd.type === 'ready') return pd.answerer;
     return pd && pd.type === 'question' && !pd.answered && pd.answerer != null ? pd.answerer : v.current;
   }
 
@@ -74,6 +75,8 @@
     if (Game.isRemote(actorOf(v))) return null;
     if (!pd) return v.phase === 'idle' && !v.busy ? { wait: pace.think, action: { type: 'roll' } } : null;
     switch (pd.type) {
+      case 'ready':
+        return { wait: pace.think, action: { type: 'ready' } };
       case 'question':
         return pd.answered ? { wait: pace.read, action: { type: 'continue' } } : { wait: pace.think * 1.5, action: { type: 'answer', i: null } };
       case 'choose': {

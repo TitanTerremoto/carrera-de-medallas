@@ -58,7 +58,7 @@
   // Aciertos que se acumulan (los errores no los borran) para que la próxima
   // pregunta normal sea «por la medalla».
   const HITS_FOR_MEDAL = 2;
-  const ANSWER_SECONDS = 20; // tiempo para responder cada pregunta
+  const ANSWER_SECONDS = 30; // tiempo para responder cada pregunta (da para leerla en voz alta)
   // Con las 4 medallas, Lance hace al instante la pregunta del desafío de la Liga Pokémon.
   const MEDALS_TO_WIN = 4;
   const DICE_MAX = 6; // el bloque de dado sale entre 1 y 6 (con 10 la partida dura ~8 min menos)

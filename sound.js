@@ -79,6 +79,19 @@
       [523, 523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.14, 0.32, 'square', 0.07));
       [262, 330, 392].forEach((f) => tone(f, 0.98, 0.9, 'triangle', 0.08));
     },
+    /** Antes de cada pregunta: arpegio de suspenso con redoble suave. */
+    suspense() {
+      [392, 440, 494, 523, 587, 659, 698].forEach((f, i) => tone(f, i * 0.13, 0.2, 'triangle', 0.08));
+      for (let i = 0; i < 14; i++) tone(95 + (i % 2) * 12, i * 0.065, 0.05, 'square', 0.025);
+      tone(784, 0.95, 0.65, 'triangle', 0.1);
+      tone(392, 0.95, 0.65, 'sine', 0.07);
+      tone(494, 0.95, 0.65, 'sine', 0.05);
+    },
+    /** «¡Ya!»: arranca la pregunta. */
+    go() {
+      tone(784, 0, 0.09, 'square', 0.07);
+      tone(1047, 0.08, 0.22, 'square', 0.08);
+    },
     special() {
       tone(440, 0, 0.1, 'sine', 0.12);
       tone(554, 0.08, 0.16, 'sine', 0.12);
@@ -102,7 +115,7 @@
     cry(id) {
       if (!enabled || !/^[a-z]+$/.test(String(id))) return;
       const audio = new Audio(`assets/cries/${id}.ogg`);
-      audio.volume = 0.45;
+      audio.volume = 0.18; // un 60 % más bajo que antes: los gritos no tapan la voz en el stream
       audio.play().catch((err) => console.warn('No se pudo reproducir el grito de', id, err));
     },
     toggle() {

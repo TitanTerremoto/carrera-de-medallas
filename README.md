@@ -131,8 +131,8 @@ mueve la boca. Se avanza tocando la caja (o con Enter/Espacio) y la víctima se
 elige con las opciones dentro de la misma caja (desde el celular, si el
 jugador está conectado). La pregunta de defensa sigue siendo una ventana. Si
 la víctima falla, la medalla vuela al ladrón mientras Meowth festeja; si
-acierta, el globo sale disparado girando y aparece «¡El Team Rocket sale
-volando otra vez!». La caja está en `talk.js` y sirve para otros personajes.
+acierta, el globo sale disparado girando y aparece «¡El Equipo Rocket ha sido
+vencido otra vez!». La caja está en `talk.js` y sirve para otros personajes.
 
 El panel (abajo a la izquierda) muestra turnos, aciertos, quién va ganando y
 de quién es el turno. Permite pausar, avanzar **un paso** por vez, elegir el
@@ -331,7 +331,7 @@ Suma un objeto a la categoría que corresponda en `questions.js`:
 - **Medalla directa:** si aciertas, ganas esa medalla. Los aciertos no suben ni se borran. Si ya la tienes, se avisa y no hay pregunta.
 - **Mew en Pueblo Paleta:** cada vez que la ficha cruza o cae en la salida avanzando (dado o Dodrio), Mew le regala una medalla al azar entre las que le faltan. Retroceder (Diglett, Islas Espuma) no cuenta. El regalo se guarda en el momento: recargar no lo repite.
 - **Desafío de la Liga:** apenas un jugador junta las 4 medallas (pregunta, Team Rocket o Mew), llega **Lance** con Dragonite y hace la pregunta final del banco `liga` (Alto Mando, campeones, líderes, legendarios y míticos). Si acierta, gana. Si falla, al empezar su próximo turno Lance le pregunta otra vez, sin tirar el dado. Si el Team Rocket le roba una medalla, vuelve a jugar normal.
-- **Tiempo:** hay 20 segundos para responder cada pregunta (también el desafío final). Si se acaba, cuenta como respuesta incorrecta. El reloj lo lleva la pantalla principal; el celular muestra la misma cuenta regresiva.
+- **Tiempo:** antes de cada pregunta suena una musiquita y quien responde confirma «¡Listo!» (en pantalla o desde su celular); recién ahí hay 30 segundos para responder cada pregunta (también el desafío final). Si se acaba, cuenta como respuesta incorrecta. El reloj lo lleva la pantalla principal; el celular muestra la misma cuenta regresiva.
 - **Centro Pokémon:** eliges la categoría y la pregunta cuenta como una normal.
 - **Team Rocket (2 casillas):** eliges a un rival que tenga alguna medalla que tú no tengas; sale al azar una de esas. El rival la defiende con una pregunta de esa categoría (20 s, responde desde su dispositivo): si acierta la conserva; si falla, pasa a ser tuya. No toca los aciertos. Si nadie tiene nada para robarte, no pasa nada. Si le robas la 4.ª medalla a alguien, Lance llega al instante.
 - **Avance/retroceso:** después de moverte se aplica la nueva casilla (como máximo 3 movimientos encadenados por turno).

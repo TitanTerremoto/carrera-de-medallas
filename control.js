@@ -499,6 +499,11 @@
     }
 
     switch (pd.type) {
+      case 'ready':
+        if (pd.answerer === mineIdx) {
+          return [el('p', { class: 'ctrl-center-text', text: `${pd.label}. ¿Estás listo?` }), bigButton('✅ ¡Listo!', () => act('ready'))];
+        }
+        return waitingFor(g, `${pd.label} · esperando a ${g.players[pd.answerer].name}…`);
       case 'opening':
         return waitingFor(g, '🎲 Cada entrenador tira el dado: el número más alto empieza…');
       case 'scene':
