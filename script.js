@@ -9,6 +9,8 @@
  *                página a mitad de turno, se retome exactamente donde estaba
  *                (y nadie pueda volver a lanzar el dado o cambiar de pregunta).
  *   decks      → preguntas aún no usadas por categoría (sin repetir hasta agotar)
+ *   asked      → textos de las preguntas ya hechas en la partida (ninguna se repite,
+ *                ni siquiera si el mismo texto está en dos categorías)
  *
  * Tipos de `pending`:
  *   { type:'move', steps, depth }             ficha por moverse
@@ -93,6 +95,8 @@
     steal: () => Promise.resolve(),
     announce() {},
     questionShot() {},
+    openingIntro: () => Promise.resolve(),
+    openingRoll: () => Promise.resolve(),
     resetScenes() {},
     visitorArrive: () => Promise.resolve(),
     visitorLeave: () => Promise.resolve(),
@@ -143,18 +147,31 @@
    * Saca la siguiente pregunta de la categoría. El mazo se rebaraja recién
    * cuando se agota, y se evita que la última pregunta salga primera otra vez.
    */
+  /** Clave de una pregunta para no repetirla: el texto, sin mayúsculas ni signos. */
+  const questionKey = (q) => q.q.toLowerCase().replace(/[¿?¡!.,«»]/g, '').replace(/\s+/g, ' ').trim();
+
   function drawQuestion(cat) {
+    const asked = new Set(state.asked || []);
     let deck = (state.decks[cat] || []).filter((i) => i < BANK[cat].length);
-    if (deck.length === 0) {
-      deck = freshDeck(cat);
-      const last = state.lastQ[cat];
-      if (deck.length > 1 && deck[deck.length - 1] === last) {
-        [deck[0], deck[deck.length - 1]] = [deck[deck.length - 1], deck[0]];
+    // Se toma la siguiente del mazo que no se haya hecho en esta partida (en
+    // ninguna categoría). Si el mazo se agota, se baraja de nuevo una vez.
+    let at = -1;
+    for (let refill = 0; refill < 2 && at < 0; refill++) {
+      if (deck.length === 0) {
+        deck = freshDeck(cat);
+        const last = state.lastQ[cat];
+        if (deck.length > 1 && deck[deck.length - 1] === last) {
+          [deck[0], deck[deck.length - 1]] = [deck[deck.length - 1], deck[0]];
+        }
       }
+      for (let k = deck.length - 1; k >= 0 && at < 0; k--) if (!asked.has(questionKey(BANK[cat][deck[k]]))) at = k;
+      if (at < 0) deck = [];
     }
-    const qi = deck.pop();
+    if (at < 0) at = deck.length - 1; // ya salieron todas: recién ahí se repite
+    const qi = deck.splice(at, 1)[0];
     state.decks[cat] = deck;
     state.lastQ[cat] = qi;
+    state.asked = [...(state.asked || []), questionKey(BANK[cat][qi])];
     return qi;
   }
 
@@ -184,6 +201,7 @@
       pending: null,
       decks,
       lastQ,
+      asked: [],
       log: [],
       winner: null,
     };
@@ -231,6 +249,7 @@
       s.lastQ = s.lastQ || {};
       // Partidas de versiones anteriores pueden no tener mazo para algún banco.
       for (const k of QUESTION_KEYS) if (!Array.isArray(s.decks[k])) s.decks[k] = [];
+      if (!Array.isArray(s.asked)) s.asked = [];
       // Al retomar, la pregunta abierta vuelve a tener el tiempo completo.
       if (s.pending && s.pending.type === 'question' && !s.pending.answered) {
         s.pending.deadline = Date.now() + ANSWER_MS;
@@ -659,6 +678,8 @@
         return showChooser();
       case 'rocket':
         return showRocket();
+      case 'opening':
+        return runOpening(run);
       case 'info':
         return showInfo();
       case 'medal':
@@ -1467,11 +1488,67 @@
   function startNewGame(players) {
     clearSave();
     const s = newState(players);
-    s.log.push({ t: `¡Comienza la partida! Empieza ${players[0].name}.`, p: 0 });
+    s.log.push({ t: '¡Comienza la partida! Cada entrenador tira el dado: el número más alto empieza.', p: 0 });
+    // La partida arranca con la ceremonia de presentación (se retoma si se recarga).
+    s.phase = 'busy';
+    s.pending = { type: 'opening' };
     mountGame(s);
     saveGame();
+    runPending(gameId);
+  }
+
+  /**
+   * Ceremonia de inicio: se presenta cada entrenador y tira el dado. El número
+   * más alto empieza; si hay empate, desempatan solo los empatados.
+   */
+  async function runOpening(run) {
+    await view().openingIntro();
+    if (!alive(run)) return;
+    let contenders = state.players.map((_, seat) => seat);
+    let round = 0;
+    let winner = 0;
+    for (;;) {
+      round++;
+      const rolls = new Map();
+      for (const seat of contenders) {
+        const p = state.players[seat];
+        state.current = seat; // el panel muestra a quién le toca tirar
+        renderTurnPanel();
+        view().announce(round === 1 ? `¡${p.name}!` : `¡${p.name} desempata!`, p.color);
+        Sound.cry(p.creature);
+        const n = 1 + Math.floor(Math.random() * DICE_MAX);
+        rolls.set(seat, n);
+        Board.hitDice(n);
+        await Promise.all([delay(1200), view().openingRoll(seat, n)]);
+        if (!alive(run)) return;
+        addLog(`🎲 ${p.name} sacó un ${n}.`, seat);
+        renderLog();
+      }
+      const best = Math.max(...rolls.values());
+      const top = contenders.filter((seat) => rolls.get(seat) === best);
+      if (top.length === 1) {
+        winner = top[0];
+        break;
+      }
+      const names = top.map((seat) => state.players[seat].name).join(' y ');
+      addLog(`🎲 ¡Empate en ${best} entre ${names}! Desempatan.`, top[0]);
+      view().announce(`¡Empate en ${best}!`, '#f8c630');
+      await delay(1400);
+      if (!alive(run)) return;
+      contenders = top;
+    }
+    const starter = state.players[winner];
+    addLog(`🏁 ¡${starter.name} sacó el número más alto y empieza la partida!`, winner);
+    toast(`¡A jugar! Empieza ${starter.name}`);
+    state.current = winner;
+    state.pending = null;
+    state.phase = 'idle';
+    busy = false;
+    saveGame();
+    renderAll();
     pulseTurn();
-    toast(`¡A jugar! Empieza ${players[0].name}`);
+    view().turnStart(winner);
+    Sound.cry(starter.creature);
   }
 
   function resumeGame(saved) {

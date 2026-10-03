@@ -61,7 +61,7 @@
   const ANSWER_SECONDS = 20; // tiempo para responder cada pregunta
   // Con las 4 medallas, Lance hace al instante la pregunta del desafío de la Liga Pokémon.
   const MEDALS_TO_WIN = 4;
-  const DICE_MAX = 10; // el bloque de dado sale entre 1 y 10
+  const DICE_MAX = 6; // el bloque de dado sale entre 1 y 6 (con 10 la partida dura ~8 min menos)
   const SAVE_KEY = 'carreraMedallas.save.v1';
 
   // Atajos para describir casillas

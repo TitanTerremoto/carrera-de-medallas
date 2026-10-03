@@ -497,6 +497,8 @@
     }
 
     switch (pd.type) {
+      case 'opening':
+        return waitingFor(g, '🎲 Cada entrenador tira el dado: el número más alto empieza…');
       case 'scene':
         return waitingFor(g, '💬 …');
       case 'move':

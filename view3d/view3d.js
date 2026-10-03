@@ -291,8 +291,6 @@ async function start() {
       return enqueue(async () => {
         const piece = pieces[seat];
         if (!piece || !lastState) return;
-        // Partida recién empezada: primero el recorrido por el diorama.
-        if (!introDone && lastState.log.length <= 1) await introFlyover();
         introDone = true;
         const pl = lastState.players[seat];
         // Con las 4 medallas no hay bloque: toca el desafío de la Liga.
@@ -390,6 +388,39 @@ async function start() {
       if (medal) fx.medalCoin(at, medal);
     },
 
+    /** Ceremonia de inicio: primero el recorrido por el diorama (una sola vez). */
+    openingIntro() {
+      return enqueue(async () => {
+        if (!introDone) await introFlyover();
+        introDone = true;
+      });
+    },
+    /** Ceremonia de inicio: el entrenador se presenta y golpea el bloque con `n`. */
+    openingRoll(seat, n) {
+      return enqueue(async () => {
+        const piece = pieces[seat];
+        if (!piece || !lastState) return;
+        fx.hideBlock();
+        fx.hideCounter();
+        if (camPref !== 'top') {
+          followSeat = seat;
+          orbit = null;
+          setMode('close');
+          await transitionTo(closePose(piece.root.position, 0.85), 900);
+        }
+        faceOutward(piece);
+        if (!piece.play('cry')) piece.jump(0.35, 360);
+        await fx.showBlock(piece.root);
+        await wait(300);
+        const jump = piece.jump(0.85, 460);
+        await wait(300);
+        window.GameSound.play('hit');
+        await fx.hitBlock(n, lastState.players[seat].color);
+        await jump;
+        await wait(650);
+        fx.hideBlock();
+      });
+    },
     /** Cartel que anuncia lo que trae la casilla (antes de la pregunta). */
     announce: (text, color) => showBanner(text, color),
     /**

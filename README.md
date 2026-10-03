@@ -44,7 +44,7 @@ Python en redes privadas.
 ## Bloque de dado
 
 En cada turno, sobre la ficha flota un bloque dorado con los números del
-**1 al 10** girando a toda velocidad. Al golpearlo (botón en la pantalla o
+**1 al 6** girando a toda velocidad. Al golpearlo (botón en la pantalla o
 tocándolo en el celular) se frena, se rompe en pedazos y el número queda
 sobre la ficha. El número lo sortea la pantalla principal en el momento del
 golpe: el giro es solo visual, así que no se puede «cazar» un número.
@@ -176,7 +176,11 @@ Alrededor del tablero 3D (`view3d/scenery.js`):
 | Lados | Camino de tierra, hierba alta, árboles, flores, Diglett asomando y Pidgey volando |
 
 Al empezar una partida, la cámara hace un recorrido de ~8 s por el diorama
-(un clic sobre el tablero lo saltea).
+(un clic sobre el tablero lo saltea). Después viene la **ceremonia de inicio**:
+cada entrenador se presenta (cartel con su nombre y su grito) y golpea el
+bloque; el número más alto empieza. Si hay empate, desempatan solo los
+empatados. En una misma partida **no se repite ninguna pregunta**, ni siquiera
+si el mismo texto está en dos categorías.
 
 - **Edificios:** son los de PokeSwap (`public/assets/town/models`, modelos de HeartGold/SoulSilver), copiados en `assets/town/` y dibujados por `view3d/townmodels.js`.
 - **Pokémon decorativos:** son de Cobblemon, en `models/decor/`.
@@ -333,4 +337,4 @@ Suma un objeto a la categoría que corresponda en `questions.js`:
 - **Monte Moon:** pierdes tu próximo turno.
 - **Guardado:** el turno en curso también se guarda. Si se recarga la pantalla principal, se retoma el mismo evento: no se puede volver a tirar ni cambiar la pregunta.
 
-Duración estimada (simulación de 20.000 partidas con las reglas actuales: Mew, Lance al instante, escenas). Con ritmo «en vivo» (gente que charla y piensa, ~30 s por pregunta): **~35 min** con 60 % de aciertos y **~31 min** con 70 % (1 de cada 10 partidas pasa de ~44 min). Con jugadores rápidos baja a ~20–25 min. Una partida tiene unos 40–55 turnos en total.
+Duración estimada (simulación de 15.000 partidas con las reglas actuales y el bloque del 1 al 6, ritmo «en vivo» de ~30 s por pregunta): **~40 min** con 60 % de aciertos y **~47 min** con 50 % (las preguntas son difíciles: 1 de cada 10 partidas pasa de ~55–63 min). Con el bloque del 1 al 10 (`DICE_MAX` en `config.js`) dura unos 5–8 min menos y Mew aparece más seguido.
