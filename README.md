@@ -148,9 +148,18 @@ cámaras, dos de cada lado**, con el nombre, los aciertos y las medallas de cada
 jugador debajo. Las preguntas y avisos aparecen dentro del área de juego
 (el tablero) y **nunca tapan las cámaras**. Los espacios
 pueden ser un marco neutro o **verde croma**
-(«🟩 Fondo verde») para superponer video en la edición. La barra de
-opciones solo aparece al pasar el mouse por arriba. También se abre con
+(«🟩 Fondo verde») para superponer video en la edición, o **transparentes**
+(«🪟 Cámaras transparentes»): el interior de las cuatro cámaras queda como un
+hueco real y todo lo demás (fondo, tablero, bordes, placas y medallas) se ve
+igual. La barra de opciones solo aparece al pasar el mouse por arriba (tocar
+el botón activo vuelve al marco neutro). También se abre con
 `index.html?vista=grabacion`.
+
+**En OBS (Fuente de navegador):** ancho 1920 y alto 1080, y las fuentes de
+cámara *debajo* de la fuente del juego, ubicadas en los huecos. Con
+«Interactuar» se maneja todo: la configuración se puede desplazar con la rueda
+(aunque OBS inyecte `overflow: hidden`) y la vista de grabación entra completa
+en 1920 × 1080 sin barras de desplazamiento.
 
 ## Cámara 3D
 

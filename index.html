@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pokémon Party</title>
     <meta name="description" content="Juego de mesa de preguntas para 4 jugadores, en una pantalla o desde los celulares." />
-    <link rel="stylesheet" href="styles.css?v=70" />
+    <link rel="stylesheet" href="styles.css?v=71" />
   </head>
   <body>
     <header class="topbar">
@@ -401,6 +401,7 @@
 
     <div class="rec-toolbar" id="recToolbar" hidden>
       <button type="button" class="btn" id="btnChroma" aria-pressed="false">🟩 Fondo verde</button>
+      <button type="button" class="btn" id="btnCamHoles" aria-pressed="false">🪟 Cámaras transparentes</button>
       <button type="button" class="btn" id="btnRecExit">✕ Salir de la vista de grabación</button>
     </div>
 
@@ -414,28 +415,28 @@
     -->
     <script src="vendor/peerjs.min.js"></script>
     <!-- Preguntas: base escrita a mano + bancos generados desde datos de PokeAPI (tools/question-gen/) -->
-    <script src="questions.js?v=70"></script>
-    <script src="questions-tipos.js?v=70"></script>
-    <script src="questions-pokedex.js?v=70"></script>
-    <script src="questions-habilidades.js?v=70"></script>
-    <script src="questions-cambalache.js?v=70"></script>
-    <script src="config.js?v=70"></script>
-    <script src="pokedata.js?v=70"></script>
-    <script src="art.js?v=70"></script>
-    <script src="dom.js?v=70"></script>
-    <script src="sound.js?v=70"></script>
-    <script src="setup.js?v=70"></script>
-    <script src="board.js?v=70"></script>
-    <script src="talk.js?v=70"></script>
-    <script src="script.js?v=70"></script>
-    <script src="net-protocol.js?v=70"></script>
-    <script src="net-host.js?v=70"></script>
-    <script src="recording.js?v=70"></script>
-    <script src="tester.js?v=70"></script>
+    <script src="questions.js?v=71"></script>
+    <script src="questions-tipos.js?v=71"></script>
+    <script src="questions-pokedex.js?v=71"></script>
+    <script src="questions-habilidades.js?v=71"></script>
+    <script src="questions-cambalache.js?v=71"></script>
+    <script src="config.js?v=71"></script>
+    <script src="pokedata.js?v=71"></script>
+    <script src="art.js?v=71"></script>
+    <script src="dom.js?v=71"></script>
+    <script src="sound.js?v=71"></script>
+    <script src="setup.js?v=71"></script>
+    <script src="board.js?v=71"></script>
+    <script src="talk.js?v=71"></script>
+    <script src="script.js?v=71"></script>
+    <script src="net-protocol.js?v=71"></script>
+    <script src="net-host.js?v=71"></script>
+    <script src="recording.js?v=71"></script>
+    <script src="tester.js?v=71"></script>
 
     <!--
       Tablero 3D: módulo ES (necesita servirse por http/https; abierto como archivo queda el 2D).
-      El "?v=70" de los archivos propios obliga a descargar la versión nueva al publicar
+      El "?v=71" de los archivos propios obliga a descargar la versión nueva al publicar
       cambios: hay que subir ese número (aquí, en los <script> y en control.html) en cada versión.
     -->
     <script type="importmap">
@@ -443,21 +444,21 @@
         "imports": {
           "three": "./vendor/three/three.module.js",
           "three/addons/": "./vendor/three/addons/",
-          "./view3d/tween.js": "./view3d/tween.js?v=70",
-          "./view3d/textures.js": "./view3d/textures.js?v=70",
-          "./view3d/scene.js": "./view3d/scene.js?v=70",
-          "./view3d/pieces.js": "./view3d/pieces.js?v=70",
-          "./view3d/fx.js": "./view3d/fx.js?v=70",
-          "./view3d/rocket.js": "./view3d/rocket.js?v=70",
-          "./view3d/rocketShot.js": "./view3d/rocketShot.js?v=70",
-          "./view3d/sceneShot.js": "./view3d/sceneShot.js?v=70",
-          "./view3d/sceneDirector.js": "./view3d/sceneDirector.js?v=70",
-          "./view3d/visitors.js": "./view3d/visitors.js?v=70",
-          "./view3d/scenery.js": "./view3d/scenery.js?v=70",
-          "./view3d/townmodels.js": "./view3d/townmodels.js?v=70"
+          "./view3d/tween.js": "./view3d/tween.js?v=71",
+          "./view3d/textures.js": "./view3d/textures.js?v=71",
+          "./view3d/scene.js": "./view3d/scene.js?v=71",
+          "./view3d/pieces.js": "./view3d/pieces.js?v=71",
+          "./view3d/fx.js": "./view3d/fx.js?v=71",
+          "./view3d/rocket.js": "./view3d/rocket.js?v=71",
+          "./view3d/rocketShot.js": "./view3d/rocketShot.js?v=71",
+          "./view3d/sceneShot.js": "./view3d/sceneShot.js?v=71",
+          "./view3d/sceneDirector.js": "./view3d/sceneDirector.js?v=71",
+          "./view3d/visitors.js": "./view3d/visitors.js?v=71",
+          "./view3d/scenery.js": "./view3d/scenery.js?v=71",
+          "./view3d/townmodels.js": "./view3d/townmodels.js?v=71"
         }
       }
     </script>
-    <script type="module" src="view3d/view3d.js?v=70"></script>
+    <script type="module" src="view3d/view3d.js?v=71"></script>
   </body>
 </html>

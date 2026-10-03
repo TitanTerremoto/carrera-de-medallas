@@ -36,18 +36,26 @@ body {
 }
 
 body {
-  min-height: 100vh;
-  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
-  color: var(--ink);
-  background:
+  /* Fondo de la página (también lo usa la capa con huecos de la vista de grabación). */
+  --page-bg:
     radial-gradient(circle at 10% 10%, rgba(255, 209, 102, 0.45), transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(6, 214, 160, 0.3), transparent 45%),
     linear-gradient(135deg, var(--bg-1), var(--bg-2));
+  min-height: 100vh;
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--page-bg);
   background-attachment: fixed;
-  overflow-x: hidden;
 }
 
-body.modal-open {
+/* «html body»: le gana al «body { overflow: hidden }» que OBS inyecta en sus
+   fuentes de navegador, así la configuración se puede desplazar con «Interactuar». */
+html body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+html body.modal-open {
   overflow: hidden;
 }
 
@@ -1930,6 +1938,9 @@ main {
 body.rec-mode {
   /* El tablero ocupa el alto disponible; las cámaras, el resto del ancho. */
   --bw: min(calc(100vh - 48px), calc(100vw - 2 * 300px - 64px));
+}
+
+html body.rec-mode {
   overflow: hidden;
 }
 
@@ -2009,6 +2020,32 @@ body.chroma .cam-hint {
   display: none;
 }
 
+/* Cámaras transparentes: el fondo lo pinta una capa fija con un hueco real en
+   el interior de cada cámara (recording.js calcula --cam-holes). Todo lo demás
+   — fondo, tablero, bordes, placas y medallas — se ve igual. */
+body.rec-mode.cam-holes {
+  background: transparent;
+}
+
+body.rec-mode.cam-holes::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--page-bg);
+  clip-path: var(--cam-holes, none);
+}
+
+body.rec-mode.cam-holes .cam-slot,
+body.rec-mode.cam-holes .cam-frame {
+  background: transparent;
+}
+
+body.rec-mode.cam-holes .cam-hint {
+  display: none;
+}
+
 .cam-plate {
   display: flex;
   align-items: center;
@@ -2075,6 +2112,10 @@ body.rec-mode .rec-toolbar {
 body.rec-mode .rec-toolbar:hover,
 body.rec-mode .rec-toolbar:focus-within {
   opacity: 1;
+}
+
+body.rec-mode .rec-toolbar .btn[aria-pressed='true'] {
+  box-shadow: 0 0 0 3px var(--gold), var(--shadow);
 }
 
 body.rec-mode .rec-toolbar::before {
