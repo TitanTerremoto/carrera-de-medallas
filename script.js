@@ -92,6 +92,7 @@
     rocketLeave: () => Promise.resolve(),
     steal: () => Promise.resolve(),
     announce() {},
+    questionShot() {},
     visitorArrive: () => Promise.resolve(),
     visitorLeave: () => Promise.resolve(),
     medalGift() {},
@@ -628,9 +629,9 @@
     const sq = BOARD_LAYOUT[p.pos];
     renderAll();
     // Transición al caer: las casillas con escena propia (Team Rocket, Centro
-    // Pokémon, Monte Moon, Dodrio, Diglett…) arrancan directo desde el plano
-    // cercano; las demás muestran su ventana enseguida mientras la cámara sube
-    // a la vista de arriba (sin esperarla).
+    // Pokémon, Monte Moon, Dodrio, Diglett…) y las preguntas comunes siguen en
+    // el plano cercano; las demás muestran su ventana enseguida mientras la
+    // cámara sube a la vista de arriba (sin esperarla).
     if (!SCENE_SQUARES.includes(sq.type)) view().overview();
 
     switch (sq.type) {
@@ -647,6 +648,7 @@
           );
         }
         view().announce(readyForMedal(p) ? `🏅 ¡Pregunta por la medalla de ${CATS[sq.cat].name}!` : `❓ ¡Pregunta de ${CATS[sq.cat].name}!`, CATS[sq.cat].color);
+        view().questionShot(state.current);
         return openQuestion(sq.cat, 'normal', null, ANNOUNCE_MS);
 
       case 'medal': {
@@ -854,8 +856,11 @@
     openQuestion(cat, 'normal');
   }
 
-  /** Casillas con escena propia en 3D (no pasan por la vista de arriba al caer). */
-  const SCENE_SQUARES = ['move', 'rocket', 'wild', 'skip', 'medal'];
+  /**
+   * Casillas que al caer se quedan en el plano cercano de la ficha (escena
+   * propia o pregunta común); el resto sube a la vista de arriba.
+   */
+  const SCENE_SQUARES = ['move', 'rocket', 'wild', 'skip', 'medal', 'question'];
 
   /** Líderes de gimnasio de cada medalla directa, con su Pokémon. */
   const LEADERS = {
@@ -1048,6 +1053,8 @@
     const p = state.players[actingSeat()]; // quien responde (la víctima, en una defensa)
     const cat = CATS[pd.cat];
     renderAll();
+    // Pregunta común: la ventana va arriba y la ficha se ve abajo (plano cercano).
+    $('questionDialog').classList.toggle('q-top', pd.mode === 'normal');
 
     $('questionDialog').style.setProperty('--cat', cat.color);
     $('questionDialog').classList.toggle('q-medal-mode', pd.mode !== 'normal');

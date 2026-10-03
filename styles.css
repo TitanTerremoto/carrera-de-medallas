@@ -1421,6 +1421,7 @@ main {
 
 /* Mientras habla un personaje, el panel del turno no asoma detrás de la caja. */
 .play-area:has(.talk-box:not([hidden])) .stage-hud,
+.play-area:has(#questionDialog:not([hidden])) .stage-hud,
 .cam-scene .stage-hud {
   visibility: hidden;
 }
@@ -2663,6 +2664,19 @@ body.rec-mode .play-area {
 
 .overlay.in-board .confetti {
   position: absolute;
+}
+
+/* La pregunta se abre sobre el plano cercano de la ficha: fondo apenas
+   oscurecido y sin desenfoque, para que la escena se siga viendo detrás. */
+#questionDialog.in-board {
+  background: radial-gradient(circle at 50% 45%, rgba(15, 23, 42, 0.04), rgba(15, 23, 42, 0.38));
+  backdrop-filter: none;
+}
+
+/* Pregunta común en 3D: arriba, con la ficha visible debajo. */
+body.has-3d #questionDialog.in-board.q-top {
+  align-items: flex-start;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.32), rgba(15, 23, 42, 0) 65%);
 }
 
 /* Entrada suave: sube un poco y se aclara, con un leve rebote al final. */

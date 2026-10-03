@@ -392,6 +392,21 @@ async function start() {
 
     /** Cartel que anuncia lo que trae la casilla (antes de la pregunta). */
     announce: (text, color) => showBanner(text, color),
+    /**
+     * Plano para una pregunta común: la ficha de frente, abajo en el cuadro,
+     * así se ve debajo de la ventana de la pregunta (que va arriba).
+     */
+    questionShot(seat) {
+      const piece = pieces[seat];
+      if (!piece || camPref === 'top') return;
+      faceOutward(piece);
+      followSeat = null;
+      orbit = null;
+      setMode('scene');
+      const pose = closePose(piece.root.position, 1.05);
+      pose.target.y += 0.7; // mirar por encima de la ficha la deja abajo
+      transitionTo(pose, 900);
+    },
     // Escenas de las casillas especiales (sceneDirector.js).
     rocketArrive: (seat) => director.rocketArrive(seat),
     rocketLeave: (blastOff) => director.rocketLeave(blastOff),
