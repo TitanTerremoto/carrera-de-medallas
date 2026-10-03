@@ -407,6 +407,11 @@ async function start() {
       pose.target.y += 0.7; // mirar por encima de la ficha la deja abajo
       transitionTo(pose, 900);
     },
+    /** Modo debug: saca globos y personajes que hayan quedado en escena. */
+    resetScenes() {
+      director.reset();
+      if (mode === 'scene') goOverview(600);
+    },
     // Escenas de las casillas especiales (sceneDirector.js).
     rocketArrive: (seat) => director.rocketArrive(seat),
     rocketLeave: (blastOff) => director.rocketLeave(blastOff),

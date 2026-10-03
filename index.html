@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pokémon: Carrera de Medallas</title>
     <meta name="description" content="Juego de mesa de preguntas para 4 jugadores, en una pantalla o desde los celulares." />
-    <link rel="stylesheet" href="styles.css?v=58" />
+    <link rel="stylesheet" href="styles.css?v=63" />
   </head>
   <body>
     <header class="topbar">
@@ -370,6 +370,29 @@
           <button type="button" class="btn" id="btnTesterSquare" title="El jugador en turno va a esa casilla">🧪 Ir</button>
         </div>
       </div>
+      <!-- Correcciones de emergencia en vivo -->
+      <details class="tester-debug" id="testerDebug">
+        <summary>🛠 Debug (emergencias)</summary>
+        <div class="debug-row">
+          <label for="debugSeat">Jugador</label>
+          <select id="debugSeat"></select>
+        </div>
+        <div class="debug-row">
+          <label for="debugPos">Casilla</label>
+          <select id="debugPos"></select>
+        </div>
+        <div class="debug-medals" id="debugMedals"></div>
+        <div class="debug-row">
+          <label for="debugStreak">Aciertos</label>
+          <select id="debugStreak"></select>
+          <label class="debug-check"><input type="checkbox" id="debugSkip" /> Pierde turno</label>
+        </div>
+        <button type="button" class="btn btn-primary" id="btnDebugApply">Aplicar cambios</button>
+        <div class="debug-row debug-actions">
+          <button type="button" class="btn" id="btnDebugTurn" title="Corta el turno actual y se lo da a este jugador">Darle el turno</button>
+          <button type="button" class="btn" id="btnDebugEnd" title="Cierra el turno trabado y pasa al siguiente">Cerrar turno trabado</button>
+        </div>
+      </details>
     </aside>
 
     <div class="rec-toolbar" id="recToolbar" hidden>
@@ -387,28 +410,28 @@
     -->
     <script src="vendor/peerjs.min.js"></script>
     <!-- Preguntas: base escrita a mano + bancos generados desde datos de PokeAPI (tools/question-gen/) -->
-    <script src="questions.js?v=58"></script>
-    <script src="questions-tipos.js?v=58"></script>
-    <script src="questions-pokedex.js?v=58"></script>
-    <script src="questions-habilidades.js?v=58"></script>
-    <script src="questions-cambalache.js?v=58"></script>
-    <script src="config.js?v=58"></script>
-    <script src="pokedata.js?v=58"></script>
-    <script src="art.js?v=58"></script>
-    <script src="dom.js?v=58"></script>
-    <script src="sound.js?v=58"></script>
-    <script src="setup.js?v=58"></script>
-    <script src="board.js?v=58"></script>
-    <script src="talk.js?v=58"></script>
-    <script src="script.js?v=58"></script>
-    <script src="net-protocol.js?v=58"></script>
-    <script src="net-host.js?v=58"></script>
-    <script src="recording.js?v=58"></script>
-    <script src="tester.js?v=58"></script>
+    <script src="questions.js?v=63"></script>
+    <script src="questions-tipos.js?v=63"></script>
+    <script src="questions-pokedex.js?v=63"></script>
+    <script src="questions-habilidades.js?v=63"></script>
+    <script src="questions-cambalache.js?v=63"></script>
+    <script src="config.js?v=63"></script>
+    <script src="pokedata.js?v=63"></script>
+    <script src="art.js?v=63"></script>
+    <script src="dom.js?v=63"></script>
+    <script src="sound.js?v=63"></script>
+    <script src="setup.js?v=63"></script>
+    <script src="board.js?v=63"></script>
+    <script src="talk.js?v=63"></script>
+    <script src="script.js?v=63"></script>
+    <script src="net-protocol.js?v=63"></script>
+    <script src="net-host.js?v=63"></script>
+    <script src="recording.js?v=63"></script>
+    <script src="tester.js?v=63"></script>
 
     <!--
       Tablero 3D: módulo ES (necesita servirse por http/https; abierto como archivo queda el 2D).
-      El "?v=58" de los archivos propios obliga a descargar la versión nueva al publicar
+      El "?v=63" de los archivos propios obliga a descargar la versión nueva al publicar
       cambios: hay que subir ese número (aquí, en los <script> y en control.html) en cada versión.
     -->
     <script type="importmap">
@@ -416,21 +439,21 @@
         "imports": {
           "three": "./vendor/three/three.module.js",
           "three/addons/": "./vendor/three/addons/",
-          "./view3d/tween.js": "./view3d/tween.js?v=58",
-          "./view3d/textures.js": "./view3d/textures.js?v=58",
-          "./view3d/scene.js": "./view3d/scene.js?v=58",
-          "./view3d/pieces.js": "./view3d/pieces.js?v=58",
-          "./view3d/fx.js": "./view3d/fx.js?v=58",
-          "./view3d/rocket.js": "./view3d/rocket.js?v=58",
-          "./view3d/rocketShot.js": "./view3d/rocketShot.js?v=58",
-          "./view3d/sceneShot.js": "./view3d/sceneShot.js?v=58",
-          "./view3d/sceneDirector.js": "./view3d/sceneDirector.js?v=58",
-          "./view3d/visitors.js": "./view3d/visitors.js?v=58",
-          "./view3d/scenery.js": "./view3d/scenery.js?v=58",
-          "./view3d/townmodels.js": "./view3d/townmodels.js?v=58"
+          "./view3d/tween.js": "./view3d/tween.js?v=63",
+          "./view3d/textures.js": "./view3d/textures.js?v=63",
+          "./view3d/scene.js": "./view3d/scene.js?v=63",
+          "./view3d/pieces.js": "./view3d/pieces.js?v=63",
+          "./view3d/fx.js": "./view3d/fx.js?v=63",
+          "./view3d/rocket.js": "./view3d/rocket.js?v=63",
+          "./view3d/rocketShot.js": "./view3d/rocketShot.js?v=63",
+          "./view3d/sceneShot.js": "./view3d/sceneShot.js?v=63",
+          "./view3d/sceneDirector.js": "./view3d/sceneDirector.js?v=63",
+          "./view3d/visitors.js": "./view3d/visitors.js?v=63",
+          "./view3d/scenery.js": "./view3d/scenery.js?v=63",
+          "./view3d/townmodels.js": "./view3d/townmodels.js?v=63"
         }
       }
     </script>
-    <script type="module" src="view3d/view3d.js?v=58"></script>
+    <script type="module" src="view3d/view3d.js?v=63"></script>
   </body>
 </html>

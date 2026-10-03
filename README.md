@@ -82,6 +82,7 @@ Bots que juegan solos, para ver cómo avanza una partida sin jugadores:
 - Durante una partida: «🤖 Modo tester» en la barra de arriba enciende o
   apaga los bots sobre la partida actual.
 - Directo: `index.html?tester=1` (arranca en pausa, listo para «Probar casilla»; «▶ Seguir» deja jugar a los bots).
+- **🛠 Debug (emergencias):** sección plegable al final del menú. Permite cambiar la casilla, las medallas, los aciertos y «pierde turno» de cualquier jugador, darle el turno a otro y cerrar un turno trabado (pregunta, escena o animación). Al abrirla, los bots se pausan; cada cambio queda en el registro con 🛠 y se guarda.
 - **Tecla P** (en cualquier vista, también en la de grabación): muestra u oculta el menú. Al abrirlo, con la P o con el botón, los bots quedan en pausa: se decide con «Probar casilla» o «▶ Seguir».
 
 **Probar casilla:** en el panel, elige cualquiera de las 36 casillas y toca
@@ -321,4 +322,4 @@ Suma un objeto a la categoría que corresponda en `questions.js`:
 - **Monte Moon:** pierdes tu próximo turno.
 - **Guardado:** el turno en curso también se guarda. Si se recarga la pantalla principal, se retoma el mismo evento: no se puede volver a tirar ni cambiar la pregunta.
 
-Duración estimada (simulación de 20.000 partidas, turno con pregunta ~30 s): **~39 min** con 60 % de aciertos y **~32 min** con 70 %. Solo 1 de cada 10 partidas pasa de ~53 min.
+Duración estimada (simulación de 20.000 partidas con las reglas actuales: Mew, Lance al instante, escenas). Con ritmo «en vivo» (gente que charla y piensa, ~30 s por pregunta): **~35 min** con 60 % de aciertos y **~31 min** con 70 % (1 de cada 10 partidas pasa de ~44 min). Con jugadores rápidos baja a ~20–25 min. Una partida tiene unos 40–55 turnos en total.

@@ -13,7 +13,7 @@
   'use strict';
 
   const { $, el, toast } = window.Dom;
-  const { CAT_KEYS, MEDALS_TO_WIN, HITS_FOR_MEDAL, BOARD_LAYOUT, squareTitle } = window.GameConfig;
+  const { CATS, CAT_KEYS, MEDALS_TO_WIN, HITS_FOR_MEDAL, BOARD_LAYOUT, squareTitle } = window.GameConfig;
   const { CREATURES } = window.GameArt;
   const Game = window.CarreraDeMedallas;
   const Setup = window.GameSetup;
@@ -186,6 +186,55 @@
     render();
   }
 
+  // ── Modo debug: correcciones de emergencia ──
+  /** Carga en el formulario los datos actuales del jugador elegido. */
+  function fillDebug(v) {
+    const seatSel = $('debugSeat');
+    const prev = seatSel.value;
+    seatSel.replaceChildren(...v.players.map((p, i) => el('option', { text: `${i + 1}. ${p.name}`, attrs: { value: String(i) } })));
+    seatSel.value = prev !== '' && v.players[Number(prev)] ? prev : String(v.current);
+    const p = v.players[Number(seatSel.value)];
+    $('debugPos').value = String(p.pos);
+    $('debugStreak').value = String(p.streak);
+    $('debugSkip').checked = !!p.skipNext;
+    for (const c of CAT_KEYS) $(`debugMedal-${c}`).checked = !!p.medals[c];
+  }
+
+  function initDebug() {
+    $('debugPos').replaceChildren(...BOARD_LAYOUT.map((sq, i) => el('option', { text: `${i} · ${squareTitle(sq)}`, attrs: { value: String(i) } })));
+    $('debugStreak').replaceChildren(...Array.from({ length: HITS_FOR_MEDAL + 1 }, (_, n) => el('option', { text: String(n), attrs: { value: String(n) } })));
+    $('debugMedals').replaceChildren(
+      ...CAT_KEYS.map((c) => el('label', { class: 'debug-check' }, [el('input', { attrs: { type: 'checkbox', id: `debugMedal-${c}` } }), ` ${CATS[c].name}`])),
+    );
+    // Al elegir otro jugador o abrir la sección, se cargan sus datos actuales.
+    $('debugSeat').addEventListener('change', () => {
+      const v = Game.publicView();
+      if (v) fillDebug(v);
+    });
+    $('testerDebug').addEventListener('toggle', () => {
+      const v = Game.publicView();
+      if (v && $('testerDebug').open) {
+        if (tester.on) tester.paused = true; // en emergencia, los bots quietos
+        fillDebug(v);
+        render();
+      }
+    });
+    $('btnDebugApply').addEventListener('click', () => {
+      const seat = Number($('debugSeat').value);
+      const medals = Object.fromEntries(CAT_KEYS.map((c) => [c, $(`debugMedal-${c}`).checked]));
+      const ok = Game.debug.setPlayer(seat, { pos: Number($('debugPos').value), medals, streak: Number($('debugStreak').value), skipNext: $('debugSkip').checked });
+      toast(ok ? '🛠 Cambios aplicados' : 'No se pudieron aplicar los cambios');
+    });
+    $('btnDebugTurn').addEventListener('click', () => {
+      const ok = Game.debug.setTurn(Number($('debugSeat').value));
+      toast(ok ? '🛠 Turno cambiado' : 'No se pudo cambiar el turno');
+    });
+    $('btnDebugEnd').addEventListener('click', () => {
+      const ok = Game.debug.endTurn();
+      toast(ok ? '🛠 Turno cerrado' : 'No hay turno para cerrar');
+    });
+  }
+
   // ── Panel flotante ──
   function render() {
     const panel = $('testerPanel');
@@ -213,6 +262,8 @@
     $('btnTesterPause').disabled = !tester.on;
     $('btnTesterStep').disabled = !tester.on || !tester.paused;
     $('btnTesterRun').hidden = tester.on || v.phase === 'over';
+    // El formulario de debug se recarga con los datos actuales mientras está cerrado.
+    if (!$('testerDebug').open) fillDebug(v);
     // Probar una casilla: solo al empezar un turno y con los bots en pausa o apagados.
     $('btnTesterSquare').disabled = v.phase !== 'idle' || v.busy || (tester.on && !tester.paused);
   }
@@ -259,6 +310,7 @@
       tester.speed = SPEEDS[e.target.value] ? e.target.value : 'normal';
       window.GameSpeed.turbo = tester.on && tester.speed === 'turbo';
     });
+    initDebug();
     Game.onUpdate(render);
     render();
     // index.html?tester=1 arranca una partida de prueba en pausa: lista para

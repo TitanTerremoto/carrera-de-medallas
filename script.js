@@ -93,6 +93,7 @@
     steal: () => Promise.resolve(),
     announce() {},
     questionShot() {},
+    resetScenes() {},
     visitorArrive: () => Promise.resolve(),
     visitorLeave: () => Promise.resolve(),
     medalGift() {},
@@ -491,6 +492,81 @@
     await delay(700); // la ficha se acomoda en la casilla anterior
     if (!alive(run)) return true;
     await runPending(run);
+    return true;
+  }
+
+  // ═════════════════════ Modo debug (emergencias en vivo) ═════════════════════
+  /*
+   * Desde el panel del tester se puede corregir la partida si algo sale mal:
+   * posición, medallas, aciertos y «pierde turno» de cada jugador, de quién es
+   * el turno y forzar el fin de un turno trabado. Todo queda en el registro
+   * con 🛠 y se guarda.
+   */
+
+  /** Corta lo que esté en curso (animaciones, ventanas, escenas) sin tocar la partida. */
+  function interruptTurn() {
+    gameId += 1; // las animaciones y escenas en curso dejan de avanzar
+    busy = false;
+    closeAllOverlays();
+    Talk.close();
+    view().resetScenes();
+  }
+
+  /** Cambia los datos de un jugador. `patch`: { pos?, medals?, streak?, skipNext? } */
+  function debugSetPlayer(seat, patch) {
+    const p = state && state.players[seat];
+    if (!p || !patch) return false;
+    const changes = [];
+    if (Number.isInteger(patch.pos) && patch.pos >= 0 && patch.pos < BOARD_SIZE && patch.pos !== p.pos) {
+      p.pos = patch.pos;
+      changes.push(`casilla ${patch.pos}`);
+    }
+    if (patch.medals) {
+      for (const c of CAT_KEYS) {
+        if (typeof patch.medals[c] === 'boolean' && patch.medals[c] !== p.medals[c]) {
+          p.medals[c] = patch.medals[c];
+          changes.push(`${patch.medals[c] ? '+' : '−'}${CATS[c].name}`);
+        }
+      }
+    }
+    if (Number.isInteger(patch.streak) && patch.streak >= 0 && patch.streak <= HITS_FOR_MEDAL && patch.streak !== p.streak) {
+      p.streak = patch.streak;
+      changes.push(`aciertos ${patch.streak}`);
+    }
+    if (typeof patch.skipNext === 'boolean' && patch.skipNext !== p.skipNext) {
+      p.skipNext = patch.skipNext;
+      changes.push(patch.skipNext ? 'pierde el próximo turno' : 'ya no pierde turno');
+    }
+    if (!changes.length) return true;
+    addLog(`🛠 Debug: ${p.name} → ${changes.join(', ')}.`, seat);
+    saveGame();
+    renderAll();
+    // Con 4 medallas al empezar su turno, Lance llega solo.
+    if (seat === state.current) scheduleLeagueRetry();
+    return true;
+  }
+
+  /** Corta el turno actual (si quedó trabado) y le da el turno a `seat`. */
+  function debugSetTurn(seat) {
+    if (!state || state.phase === 'over' || !state.players[seat]) return false;
+    interruptTurn();
+    state.pending = null;
+    state.phase = 'idle';
+    state.current = seat;
+    addLog(`🛠 Debug: turno de ${state.players[seat].name}.`, seat);
+    saveGame();
+    renderAll();
+    view().turnStart(seat);
+    scheduleLeagueRetry();
+    return true;
+  }
+
+  /** Termina el turno en curso (pregunta, escena o animación trabada) y pasa al siguiente. */
+  function debugEndTurn() {
+    if (!state || state.phase === 'over') return false;
+    interruptTurn();
+    addLog(`🛠 Debug: se cerró el turno de ${cur().name}.`, state.current);
+    endTurn();
     return true;
   }
 
@@ -1656,6 +1732,12 @@
     /** fn(seat) → true si ese asiento juega desde otro dispositivo. */
     /** Modo tester: el jugador en turno va a esa casilla (ver testSquare). */
     testSquare: (index) => testSquare(index),
+    /** Modo debug: correcciones de emergencia desde el panel del tester. */
+    debug: {
+      setPlayer: (seat, patch) => debugSetPlayer(seat, patch),
+      setTurn: (seat) => debugSetTurn(seat),
+      endTurn: () => debugEndTurn(),
+    },
     setRemoteSeats(fn) {
       isRemoteSeat = fn;
       if (state) {

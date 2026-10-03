@@ -2257,6 +2257,9 @@ body.rec-mode .stage3d:hover .stage-cam-btn {
   gap: 8px;
   font-size: 0.85rem;
   border: 3px solid #7048e8;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .tester-head {
@@ -2299,6 +2302,67 @@ body.rec-mode .stage3d:hover .stage-cam-btn {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+/* Las filas del panel se achican al ancho (las listas tienen opciones largas). */
+.tester-panel > *,
+.tester-square > *,
+.tester-debug > * {
+  min-width: 0;
+}
+
+/* Modo debug: correcciones de emergencia en vivo */
+.tester-debug {
+  border-top: 1px dashed var(--line);
+  padding-top: 6px;
+  font-size: 0.8rem;
+}
+
+.tester-debug summary {
+  font-weight: 800;
+  cursor: pointer;
+  color: #c92a2a;
+}
+
+.tester-debug[open] {
+  display: grid;
+  gap: 6px;
+}
+
+.debug-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.debug-row label {
+  font-weight: 700;
+}
+
+.debug-row select {
+  flex: 1 1 60px;
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+}
+
+.debug-medals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 8px;
+}
+
+.debug-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.tester-debug .btn {
+  font-size: 0.78rem;
+  padding: 0.35em 0.7em;
 }
 
 /* Probar una casilla cualquiera con el jugador en turno */

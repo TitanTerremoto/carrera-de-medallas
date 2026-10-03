@@ -30,11 +30,11 @@ export const VISITORS = {
   diglett: { height: 0.48, radius: 0.24 },
   tentacool: { height: 0.62, radius: 0.32 },
   zubat: { height: 0.42, radius: 0.3 },
-  mew: { height: 0.55, radius: 0.3, fly: true, hover: 0.45, float: true },
+  mew: { height: 0.72, radius: 0.34, fly: true, hover: 0.4, float: true },
   tangela: { height: 0.72, radius: 0.4 },
   onix: { height: 1.6, radius: 0.55 },
   raichu: { height: 0.78, radius: 0.36 },
-  venomoth: { height: 0.72, radius: 0.42, fly: true, hover: 0.35, float: true },
+  venomoth: { height: 0.9, radius: 0.46, fly: true, hover: 0.3, float: true },
   dragonite: { height: 1.3, radius: 0.55, fly: true, hover: 0 },
 };
 
