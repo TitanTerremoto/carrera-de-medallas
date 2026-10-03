@@ -24,20 +24,21 @@ DATA = os.path.join(GAME_DIR, 'tools', 'pokeapi-data')
 OUT = os.path.join(GAME_DIR, 'questions-habilidades.js')
 EXISTING = os.path.join(GAME_DIR, 'questions.js')
 
-# Cupos por plantilla (suman 500, ninguno > 25 %).
+# Cupos por plantilla (suman 500, ninguno > 25 %). Pocas preguntas fáciles
+# («¿de qué tipo es Lanzallamas?», «¿cuál es más potente?») y más datos finos.
 TARGETS = collections.OrderedDict([
-    ('tipo_de_movimiento', 50),
-    ('movimiento_de_tipo', 35),
+    ('tipo_de_movimiento', 30),
+    ('movimiento_de_tipo', 20),
     ('categoria', 40),
-    ('potencia', 45),
-    ('precision', 40),
-    ('pp', 35),
+    ('potencia', 55),
+    ('precision', 45),
+    ('pp', 40),
     ('prioridad', 35),
-    ('descripcion_movimiento', 60),
-    ('descripcion_habilidad', 60),
-    ('habilidad_de_pokemon', 45),
-    ('habilidad_oculta', 30),
-    ('mas_potente', 25),
+    ('descripcion_movimiento', 65),
+    ('descripcion_habilidad', 65),
+    ('habilidad_de_pokemon', 55),
+    ('habilidad_oculta', 35),
+    ('mas_potente', 15),
 ])
 
 

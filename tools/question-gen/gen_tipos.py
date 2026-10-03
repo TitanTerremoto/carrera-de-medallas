@@ -200,19 +200,19 @@ def t_tipo_de_pokemon():
         if re.search(r'(?<!\w)%s(?!\w)' % re.escape(name), EXISTING_BLOB):
             continue  # evita casi-duplicados de preguntas escritas a mano
         if len(types) == 1:
+            # Puro: dos combinaciones que incluyen su tipo y otro tipo puro.
             t = types[0]
             others = [x for x in TYPE_IDS if x != t]
-            mono = rng.sample(others, 2)
-            extra = rng.choice([x for x in others if x not in mono])
-            dual = (t, extra) if rng.random() < 0.5 else (extra, t)
-            wrong = [tn(m) for m in mono] + [combo_txt(dual)]
+            a, b, c = rng.sample(others, 3)
+            wrong = [combo_txt((t, a)), combo_txt((b, t)), tn(c)]
             correct = tn(t)
             explain = '%s es de tipo %s puro.' % (name, correct)
         else:
+            # Doble: el primer tipo solo (¿o era puro?) y dos combinaciones parecidas.
             t1, t2 = types
             others = [x for x in TYPE_IDS if x not in types]
-            a, b, c = rng.sample(others, 3)
-            wrong = [combo_txt((t1, a)), combo_txt((b, t2)), tn(c)]
+            a, b = rng.sample(others, 2)
+            wrong = [combo_txt((t1, a)), combo_txt((b, t2)), tn(t1)]
             correct = combo_txt(types)
             explain = '%s combina los tipos %s y %s.' % (name, tn(t1), tn(t2))
         out.append(Q('tipo_de_pokemon', '¿De qué tipo es %s?' % name, correct, wrong,
@@ -532,18 +532,19 @@ def t_evolucion_tipo():
 
 
 QUOTAS = [  # (generador, cuota)
-    (t_tipo_de_pokemon, 90),
-    (t_pokemon_de_tipo, 59),
-    (t_debilidad_de_tipo, 34),
-    (t_super_eficaz_ofensivo, 32),
-    (t_resistencia_inmunidad, 35),
-    (t_poco_eficaz, 30),
-    (t_multiplicador_pokemon, 70),
-    (t_multiplicador_combinacion, 40),
-    (t_num_debilidades, 30),
-    (t_pokemon_inmune, 30),
-    (t_debil_x4, 30),
-    (t_evolucion_tipo, 20),
+    # Menos tabla de tipos básica (Agua > Fuego…) y más cuentas con dos tipos.
+    (t_tipo_de_pokemon, 85),
+    (t_pokemon_de_tipo, 40),
+    (t_debilidad_de_tipo, 15),
+    (t_super_eficaz_ofensivo, 15),
+    (t_resistencia_inmunidad, 20),
+    (t_poco_eficaz, 15),
+    (t_multiplicador_pokemon, 110),
+    (t_multiplicador_combinacion, 60),
+    (t_num_debilidades, 35),
+    (t_pokemon_inmune, 35),
+    (t_debil_x4, 45),
+    (t_evolucion_tipo, 25),
 ]
 FILLERS = ['multiplicador_pokemon', 'tipo_de_pokemon', 'multiplicador_combinacion', 'debil_x4']
 

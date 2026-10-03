@@ -589,7 +589,7 @@
     renderAll();
     await view().visitorArrive('dragonite', state.current);
     if (!alive(run) || state.pending !== pd) return;
-    await characterSays('lance', `¡${p.name}, juntaste las ${MEDALS_TO_WIN} medallas! Soy Lance, Campeón de la Liga Pokémon. Responde bien y el título será tuyo.`);
+    await characterSays('lance', `¡Draaa! Soy Dragonite, el compañero de Lance, Campeón de la Liga Pokémon. ¡${p.name}, juntaste las ${MEDALS_TO_WIN} medallas! Responde bien y el título será tuyo.`);
     if (!alive(run) || state.pending !== pd) return;
     Talk.close();
     releaseQuestion();
@@ -733,7 +733,7 @@
           addLog(`${p.name} ya tiene la medalla de ${CATS[sq.cat].name}.`, state.current);
           await view().visitorArrive(leader.model, state.current);
           if (!alive(run)) return;
-          await characterSays(leader.kind, `Ya tienes la ${CATS[sq.cat].badgeName}, ${p.name}. ¡Vuelve cuando quieras a desafiarme!`);
+          await characterSays(leader.kind, `Ya tienes la ${CATS[sq.cat].badgeName}, ${p.name}. ¡${leader.leader} te espera cuando quieras una revancha!`);
           if (!alive(run)) return;
           Talk.close();
           view().visitorLeave();
@@ -940,10 +940,11 @@
 
   /** Líderes de gimnasio de cada medalla directa, con su Pokémon. */
   const LEADERS = {
-    tipos: { kind: 'erika', model: 'tangela', line: (n, b) => `Soy Erika, del Gimnasio de Azulona. Responde con calma, ${n}, y la ${b} será tuya.` },
-    pokedex: { kind: 'brock', model: 'onix', line: (n, b) => `¡Soy Brock, líder del Gimnasio de Plateada! Si aciertas, ${n}, te llevas la ${b}.` },
-    habilidades: { kind: 'surge', model: 'raichu', line: (n, b) => `¡Hey, recluta ${n}! Soy Lt. Surge, de Ciudad Carmín. Acierta y la ${b} es tuya.` },
-    cambalache: { kind: 'koga', model: 'venomoth', line: (n, b) => `Koga, maestro ninja de Fucsia. Si tu respuesta es certera, ${n}, la ${b} será tuya.` },
+    // Habla el Pokémon del líder, en nombre de su entrenador.
+    tipos: { kind: 'erika', model: 'tangela', leader: 'Erika', line: (n, b) => `Soy Tangela, del Gimnasio de Erika en Ciudad Azulona. Responde con calma, ${n}, y la ${b} será tuya.` },
+    pokedex: { kind: 'brock', model: 'onix', leader: 'Brock', line: (n, b) => `¡Soy Onix, del Gimnasio de Brock en Ciudad Plateada! Si aciertas, ${n}, te llevas la ${b}.` },
+    habilidades: { kind: 'surge', model: 'raichu', leader: 'Lt. Surge', line: (n, b) => `¡Rai, rai! Soy Raichu, del Gimnasio de Lt. Surge en Ciudad Carmín. Acierta, ${n}, y la ${b} es tuya.` },
+    cambalache: { kind: 'koga', model: 'venomoth', leader: 'Koga', line: (n, b) => `Soy Venomoth, del Gimnasio de Koga en Ciudad Fucsia. Si tu respuesta es certera, ${n}, la ${b} será tuya.` },
   };
 
   /** Lo que dicen Dodrio, Diglett y Tentacool antes de mover la ficha. */
@@ -971,11 +972,11 @@
     diglett: { name: 'Diglett', art: 'diglett' },
     tentacool: { name: 'Tentacool', art: 'tentacool' },
     mew: { name: 'Mew', art: 'mew' },
-    erika: { name: 'Erika', art: 'tangela' },
-    brock: { name: 'Brock', art: 'onix' },
-    surge: { name: 'Lt. Surge', art: 'raichu' },
-    koga: { name: 'Koga', art: 'venomoth' },
-    lance: { name: 'Lance', art: 'dragonite' },
+    erika: { name: 'Tangela', art: 'tangela' },
+    brock: { name: 'Onix', art: 'onix' },
+    surge: { name: 'Raichu', art: 'raichu' },
+    koga: { name: 'Venomoth', art: 'venomoth' },
+    lance: { name: 'Dragonite', art: 'dragonite' },
   };
 
   /**

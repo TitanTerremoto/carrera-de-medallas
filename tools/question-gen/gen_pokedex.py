@@ -45,7 +45,8 @@ TEMPLATE_TARGETS = {
     "siguiente_anterior": 35,
     "color": 25,
 }
-DIFFICULTY_WEIGHTS = [("facil", 50), ("media", 35), ("dificil", 15)]
+# Sin nivel fácil: números, pesos y alturas con opciones cercanas que confunden.
+DIFFICULTY_WEIGHTS = [("facil", 0), ("media", 55), ("dificil", 45)]
 RANGE_WEIGHTS = [((1, 251), 55), ((252, 493), 30), ((494, 1025), 15)]
 MAX_SUBJECT_USES = 3
 MIN_GAP = 0.15  # separación mínima relativa entre valores de altura/peso

@@ -95,10 +95,11 @@ anotado en el registro con 🧪).
 **Escenas de las casillas especiales (3D):** al caer, la cámara va directo a
 una escena con un personaje de Cobblemon y la caja de diálogo, sin ventanas:
 
-- **Medalla directa:** el líder habla con su Pokémon (Erika y Tangela, Brock y
-  Onix, Lt. Surge y Raichu, Koga y Venomoth) y después aparece la pregunta.
+- **Medalla directa:** el Pokémon del líder te desafía en su nombre («Soy
+  Onix, del Gimnasio de Brock…»): Tangela (Erika), Onix (Brock), Raichu
+  (Lt. Surge) y Venomoth (Koga). Después aparece la pregunta.
 - **Pueblo Paleta:** Mew baja flotando y regala una medalla.
-- **Desafío de la Liga:** Lance llega con Dragonite y hace la pregunta final.
+- **Desafío de la Liga:** llega el Dragonite de Lance y hace la pregunta final.
 - **Islas Espuma:** Tentacool arrastra la ficha 4 casillas hacia atrás.
 
 - **Centro Pokémon:** entra Chansey caminando y pregunta la categoría con
@@ -294,6 +295,16 @@ python games/carrera-de-medallas/tools/question-gen/gen_tipos.py
 (Igual con `gen_pokedex.py`, `gen_habilidades.py` y `gen_cambalache.py`.)
 Los valores son los actuales de PokeAPI (por ejemplo, potencias revisadas en
 la 6.ª generación).
+
+**Dificultad:** no hay preguntas obvias del tipo «¿en qué evoluciona
+Bulbasaur?», «¿de qué evoluciona?», «forma final» ni «cuántas etapas»; en su
+lugar hay niveles de evolución, objetos y métodos. Las opciones incorrectas
+están pensadas para confundir: números de Pokédex, pesos, alturas y niveles
+cercanos al real; «¿de qué tipo es X?» con el mismo tipo puro o combinado;
+«¿cuál es legendario?» contra míticos, pseudolegendarios y ultraentes de la
+misma región. La tabla de tipos básica tiene poco peso frente a las cuentas
+con dos tipos. Las preguntas escritas a mano (`questions.js`, incluidas las
+24 del desafío de la Liga) siguen el mismo criterio.
 
 ## Agregar preguntas
 

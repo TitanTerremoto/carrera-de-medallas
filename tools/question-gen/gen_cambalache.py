@@ -37,26 +37,37 @@ REGION_UNSAFE = {808, 809} | set(range(899, 906)) | set(range(1011, 1026))
 UB_PARADOX = set(range(793, 800)) | set(range(803, 807)) | set(range(984, 996)) | \
     set(range(1005, 1011)) | set(range(1020, 1024))
 
-# Plantillas y cuotas (suman 500; ninguna > 25 %).
+# Plantillas y cuotas (suman 500; ninguna > 25 %). Sin preguntas fáciles de
+# evolución («¿en qué evoluciona X?», «¿de qué evoluciona?», etapas, forma
+# final): en su lugar, niveles, objetos y métodos de evolución.
 QUOTAS = [
-    ('evo_to', 60),
-    ('evo_from', 55),
-    ('level', 55),
+    ('level', 125),
+    ('item_desc', 100),
+    ('debut_region', 75),
+    ('habitat', 60),
     ('evo_item', 50),
-    ('trade', 20),
-    ('status', 52),       # legendario / mítico / bebé
-    ('debut_region', 45),
+    ('status', 45),       # legendario / mítico / bebé, con opciones que confunden
     ('region_pick', 30),
-    ('item_desc', 45),
-    ('stages', 30),
-    ('final_form', 33),
-    ('habitat', 25),
+    ('trade', 15),
 ]
+
+# Señuelos para «¿cuál es legendario/mítico?»: Pokémon que «parecen» legendarios
+# (pseudolegendarios, fósiles, ultraentes, paradojas e íconos de cada región).
+DECOYS = {
+    131, 132, 142, 143, 149,            # Kanto: Lapras, Ditto, Aerodactyl, Snorlax, Dragonite
+    212, 214, 227, 248,                 # Johto: Scizor, Heracross, Skarmory, Tyranitar
+    350, 359, 373, 376,                 # Hoenn: Milotic, Absol, Salamence, Metagross
+    442, 445, 448, 479,                 # Sinnoh: Spiritomb, Garchomp, Lucario, Rotom
+    612, 635, 637,                      # Teselia: Haxorus, Hydreigon, Volcarona
+    681, 706, 715,                      # Kalos: Aegislash, Goodra, Noivern
+    778, 784,                           # Alola: Mimikyu, Kommo-o
+    823, 887,                           # Galar: Corviknight, Dragapult
+    983, 998, 1000,                     # Paldea: Kingambit, Baxcalibur, Gholdengo
+} | UB_PARADOX
 # Dificultad heurística (solo informativa): base por plantilla + rango de la especie
 # (1-251: +0, 252-493: +1, 494+: +2), acotada a 0 fácil / 1 media / 2 difícil.
-BASE_DIFF = {'evo_to': 0, 'evo_from': 0, 'debut_region': 0, 'status': 0, 'final_form': 0,
-             'region_pick': 0, 'evo_item': 0, 'trade': 0, 'item_desc': 0, 'stages': 1,
-             'level': 1, 'habitat': 1}
+BASE_DIFF = {'debut_region': 0, 'status': 1, 'region_pick': 0, 'evo_item': 1, 'trade': 1,
+             'item_desc': 1, 'level': 1, 'habitat': 1}
 
 rng = random.Random(SEED)
 
@@ -234,30 +245,6 @@ def trade_child(sid):
     return None
 
 
-def chain_info(chain_id):
-    members = chains[chain_id]
-    roots = [m for m in members if not species[m]['parent'] or species[m]['parent'] not in species]
-    depth = {}
-
-    def walk(n, d):
-        depth[n] = d
-        for c in children.get(n, []):
-            walk(c, d + 1)
-    for r in roots:
-        walk(r, 1)
-    leaves = [m for m in members if not children.get(m)]
-    return roots, depth, leaves
-
-
-def descendants(sid):
-    out, stack = set(), list(children.get(sid, []))
-    while stack:
-        n = stack.pop()
-        out.add(n)
-        stack.extend(children.get(n, []))
-    return out
-
-
 def bucket(sid):
     return 0 if sid <= 251 else (1 if sid <= 493 else 2)
 
@@ -299,10 +286,6 @@ def pick(pool, k, exclude=(), prefer=None):
     if len(pool) < k:
         return None
     return rng.sample(pool, k)
-
-
-def near_gen(target_gen, spread=1):
-    return lambda sid: abs(species[sid]['gen'] - target_gen) <= spread
 
 
 def P(sid):
@@ -349,47 +332,6 @@ evolved = [s for s in species if species[s]['parent'] in species]
 has_children = [s for s in species if children.get(s)]
 
 
-def gen_evo_to(n):
-    out = 0
-    for p in weighted_order(has_children):
-        if out >= n:
-            break
-        ch = children[p]
-        chain = set(chains[species[p]['chain']])
-        c = ch[0] if len(ch) == 1 else rng.choice(ch)
-        wrong = pick(evolved, 3, exclude=chain, prefer=near_gen(species[c]['gen']))
-        if not wrong:
-            continue
-        if len(ch) == 1:
-            q = f'¿En qué Pokémon evoluciona {P(p)}?'
-            exp = f'{P(p)} evoluciona a {P(c)}.'
-        else:
-            q = f'¿Cuál de estos Pokémon es una evolución de {P(p)}?'
-            exp = f'{P(c)} es una de las {len(ch)} evoluciones directas de {P(p)}.'
-        ok = add('evo_to', q, P(c), [P(w) for w in wrong], exp, p,
-                 check=lambda p=p, c=c, w=wrong: c in children[p] and
-                 not any(x in descendants(p) for x in w))
-        out += ok
-    return out
-
-
-def gen_evo_from(n):
-    out = 0
-    for p in weighted_order(evolved):
-        if out >= n:
-            break
-        par = species[p]['parent']
-        chain = set(chains[species[p]['chain']])
-        wrong = pick(has_children, 3, exclude=chain, prefer=near_gen(species[par]['gen']))
-        if not wrong:
-            continue
-        ok = add('evo_from', f'¿De qué Pokémon evoluciona {P(p)}?', P(par), [P(w) for w in wrong],
-                 f'{P(p)} es la evolución de {P(par)}.', p,
-                 check=lambda p=p, w=wrong: all(species[p]['parent'] != x for x in w))
-        out += ok
-    return out
-
-
 def gen_level(n):
     cands = []
     for p in has_children:
@@ -405,7 +347,7 @@ def gen_level(n):
             break
         c = children[p][0]
         lvl = simple_method(c)[1]
-        pool = [x for x in range(max(2, lvl - 14), min(80, lvl + 14) + 1) if abs(x - lvl) >= 2]
+        pool = [x for x in range(max(2, lvl - 7), min(80, lvl + 7) + 1) if x != lvl]
         wrong = rng.sample(pool, 3)
         ok = add('level', f'¿A qué nivel evoluciona {P(p)}?', f'Nivel {lvl}',
                  [f'Nivel {x}' for x in wrong],
@@ -539,9 +481,14 @@ def gen_status(n):
                 pool = [s for s in species if species[s]['gen'] == g and region_ok(s)
                         and not flagged(s) and not species[s]['parent'] and children.get(s)]
             else:
+                # Para «legendario»: míticos y señuelos; para «mítico»: legendarios y señuelos.
+                other = 'mythical' if flag == 'legendary' else 'legendary'
                 pool = [s for s in species if species[s]['gen'] == g and region_ok(s)
-                        and not flagged(s) and s not in UB_PARADOX and not children.get(s)
-                        and species[s]['parent']]
+                        and not species[s][flag] and (species[s][other] or s in DECOYS)]
+                if len(pool) < 3:
+                    pool += [s for s in species if species[s]['gen'] == g and region_ok(s)
+                             and not flagged(s) and s not in UB_PARADOX and not children.get(s)
+                             and species[s]['parent'] and s not in pool]
             wrong = pick(pool, 3)
             if not wrong:
                 continue
@@ -706,74 +653,6 @@ def gen_item_desc(n):
     return out
 
 
-def stage_word(k):
-    return '1 etapa' if k == 1 else f'{k} etapas'
-
-
-def gen_stages(n):
-    picks = []
-    for cid, members in chains.items():
-        roots, depth, leaves = chain_info(cid)
-        if len(roots) != 1:
-            continue
-        leaf_depths = {depth[l] for l in leaves}
-        if len(leaf_depths) != 1:
-            continue
-        picks.append((rng.choice(sorted(members)), leaf_depths.pop(), roots[0]))
-    picks.sort()
-    singles_cap = max(1, n // 6)
-    singles = 0
-    out = 0
-    for p, k, root in weighted_order(picks, key=lambda t: t[0]):
-        if out >= n:
-            break
-        if k == 1:
-            if singles >= singles_cap:
-                continue
-        wrong = [stage_word(x) for x in (1, 2, 3, 4) if x != k]
-        if k == 1:
-            exp = f'{P(p)} no evoluciona ni procede de otra especie, así que su línea tiene 1 etapa.'
-        else:
-            exp = f'La línea evolutiva de {P(p)} empieza en {P(root)} y tiene {k} etapas.'
-        ok = add('stages', f'¿Cuántas etapas tiene la línea evolutiva de {P(p)}?', stage_word(k),
-                 wrong, exp, p)
-        if ok and k == 1:
-            singles += 1
-        out += ok
-    return out
-
-
-def gen_final_form(n):
-    finals = []  # hojas de cadenas con evolución
-    cands = []
-    for cid, members in chains.items():
-        roots, depth, leaves = chain_info(cid)
-        if len(members) < 2:
-            continue
-        finals.extend(l for l in leaves if species[l]['parent'])
-        if len(roots) == 1 and len(leaves) == 1:
-            non_leaf = [m for m in members if m != leaves[0]]
-            cands.append((rng.choice(sorted(non_leaf)), leaves[0], len(set(depth.values()))))
-    cands.sort()
-    # Preferir cadenas de 3 etapas: se ordenan primero.
-    ordered = weighted_order(cands, key=lambda t: t[0])
-    ordered.sort(key=lambda t: -min(t[2], 3))
-    out = 0
-    for p, leaf, k in ordered:
-        if out >= n:
-            break
-        chain = set(chains[species[p]['chain']])
-        wrong = pick(finals, 3, exclude=chain, prefer=near_gen(species[leaf]['gen']))
-        if not wrong:
-            continue
-        ok = add('final_form', f'¿Cuál es la forma final de la línea evolutiva de {P(p)}?', P(leaf),
-                 [P(w) for w in wrong], f'La línea evolutiva de {P(p)} termina en {P(leaf)}.', p,
-                 check=lambda p=p, leaf=leaf, w=wrong: leaf in descendants(p) and not children.get(leaf)
-                 and not any(x in chains[species[p]['chain']] for x in w))
-        out += ok
-    return out
-
-
 CONFUSABLE_HAB = [{7, 9}, {3, 6}]  # mar / agua salada; pradera / campo
 
 
@@ -803,10 +682,9 @@ def gen_habitat(n):
 
 
 GENS = {
-    'evo_to': gen_evo_to, 'evo_from': gen_evo_from, 'level': gen_level, 'evo_item': gen_evo_item,
-    'trade': gen_trade, 'status': gen_status, 'debut_region': gen_debut_region,
-    'region_pick': gen_region_pick, 'item_desc': gen_item_desc, 'stages': gen_stages,
-    'final_form': gen_final_form, 'habitat': gen_habitat,
+    'level': gen_level, 'evo_item': gen_evo_item, 'trade': gen_trade, 'status': gen_status,
+    'debut_region': gen_debut_region, 'region_pick': gen_region_pick, 'item_desc': gen_item_desc,
+    'habitat': gen_habitat,
 }
 
 # ----------------------------------------------------------------------------- ejecución
@@ -817,7 +695,7 @@ for tpl, quota in QUOTAS:
     made[tpl] = GENS[tpl](quota)
     shortfall += quota - made[tpl]
 # Rellenar el déficit con plantillas que tengan margen (sin superar el 25 %).
-refill = ['evo_from', 'debut_region', 'evo_to', 'final_form', 'habitat', 'level', 'item_desc']
+refill = ['item_desc', 'debut_region', 'habitat', 'evo_item', 'region_pick', 'status']
 for tpl in refill:
     if shortfall <= 0:
         break
@@ -834,8 +712,8 @@ qs = [norm(x['q']) for x in questions]
 if len(set(qs)) != len(qs):
     fail('preguntas duplicadas')
 tpl_count = Counter(x['tpl'] for x in questions)
-if len(tpl_count) < 8:
-    fail('menos de 8 plantillas')
+if len(tpl_count) < 7:
+    fail('menos de 7 plantillas')
 for t, c in tpl_count.items():
     if c > TOTAL * 0.25:
         fail(f'plantilla {t} supera el 25 %: {c}')

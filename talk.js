@@ -19,7 +19,7 @@
   const { artIcon } = window.GameArt;
   const Sound = window.GameSound;
 
-  const CHAR_MS = 28; // velocidad del texto
+  const CHAR_MS = 14; // velocidad del texto (una letra cada 14 ms)
   const HOLD_MS = 1700; // en auto, cuánto queda el texto completo antes de seguir
 
   let current = null; // { resolve, done, timer, typing, full }
