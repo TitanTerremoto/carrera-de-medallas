@@ -395,8 +395,10 @@
         t.replaceChildren(p.creature ? creatureIcon(p.creature) : el('span', { text: '?' }));
       }
     });
+    // Jugadores en el orden en que juegan (el de los dados de la ceremonia).
+    const order = Array.isArray(g.order) && g.order.length === g.players.length ? g.order : g.players.map((_, i) => i);
     $('mbCenter').replaceChildren(
-      ...g.players.map((p, seat) =>
+      ...order.map((seat) => [g.players[seat], seat]).map(([p, seat]) =>
         el('div', { class: `mb-player ${g.phase !== 'over' && seat === g.current ? 'current' : ''} ${seat === mineIdx ? 'mine' : ''}`, style: { '--pc': p.color } }, [
           token(p, 'mb-player-token'),
           el('span', { class: 'mb-player-name', text: p.name }),

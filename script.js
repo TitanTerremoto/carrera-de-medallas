@@ -1,5 +1,5 @@
 /*
- * Carrera de Medallas — lógica principal del juego.
+ * Pokémon Party — lógica principal del juego.
  *
  * Modelo de estado (todo vive en `state` y se guarda en localStorage):
  *   players[]  → nombre, ficha, color, posición, aciertos (streak), medallas, pierde turno
@@ -9,6 +9,7 @@
  *                página a mitad de turno, se retome exactamente donde estaba
  *                (y nadie pueda volver a lanzar el dado o cambiar de pregunta).
  *   decks      → preguntas aún no usadas por categoría (sin repetir hasta agotar)
+ *   order      → orden de turnos (asientos), según los dados de la ceremonia
  *   asked      → textos de las preguntas ya hechas en la partida (ninguna se repite,
  *                ni siquiera si el mismo texto está en dos categorías)
  *
@@ -196,6 +197,7 @@
         skipNext: false,
       })),
       current: 0,
+      order: players.map((_, seat) => seat), // se define en la ceremonia de inicio
       phase: 'idle',
       lastRoll: null,
       pending: null,
@@ -250,6 +252,10 @@
       // Partidas de versiones anteriores pueden no tener mazo para algún banco.
       for (const k of QUESTION_KEYS) if (!Array.isArray(s.decks[k])) s.decks[k] = [];
       if (!Array.isArray(s.asked)) s.asked = [];
+      // Orden de turnos: una permutación de los asientos (partidas viejas: el de los asientos).
+      const seats = s.players.map((_, seat) => seat);
+      const okOrder = Array.isArray(s.order) && s.order.length === seats.length && seats.every((x) => s.order.includes(x));
+      if (!okOrder) s.order = seats;
       // Al retomar, la pregunta abierta vuelve a tener el tiempo completo.
       if (s.pending && s.pending.type === 'question' && !s.pending.answered) {
         s.pending.deadline = Date.now() + ANSWER_MS;
@@ -362,9 +368,16 @@
     notify();
   }
 
+  /** Asientos en el orden de turnos (el de los dados de la ceremonia). */
+  function turnOrder() {
+    const seats = state.players.map((_, seat) => seat);
+    return Array.isArray(state.order) && state.order.length === seats.length ? state.order : seats;
+  }
+
   function renderPlayers() {
+    // Los entrenadores se listan en el orden en que juegan.
     $('playersList').replaceChildren(
-      ...state.players.map((p, i) =>
+      ...turnOrder().map((i) => [state.players[i], i]).map(([p, i]) =>
         el('li', { class: `player-row ${i === state.current && state.phase !== 'over' ? 'current' : ''}`, style: { '--pc': p.color } }, [
           tokenNode(p),
           el('div', { class: 'player-info' }, [
@@ -845,9 +858,11 @@
   function endTurn() {
     if (!state || state.phase === 'over') return;
     state.pending = null;
+    // El turno sigue el orden que salió de los dados al empezar.
+    const order = turnOrder();
     let next = state.current;
     for (let guard = 0; guard < 8; guard++) {
-      next = (next + 1) % state.players.length;
+      next = order[(order.indexOf(next) + 1) % order.length];
       const p = state.players[next];
       if (!p.skipNext) break;
       p.skipNext = false;
@@ -1488,7 +1503,7 @@
   function startNewGame(players) {
     clearSave();
     const s = newState(players);
-    s.log.push({ t: '¡Comienza la partida! Cada entrenador tira el dado: el número más alto empieza.', p: 0 });
+    s.log.push({ t: '¡Comienza la partida! Cada entrenador tira el dado: el orden de turnos va del número más alto al más bajo.', p: 0 });
     // La partida arranca con la ceremonia de presentación (se retoma si se recarga).
     s.phase = 'busy';
     s.pending = { type: 'opening' };
@@ -1498,48 +1513,64 @@
   }
 
   /**
-   * Ceremonia de inicio: se presenta cada entrenador y tira el dado. El número
-   * más alto empieza; si hay empate, desempatan solo los empatados.
+   * Ceremonia de inicio: se presenta cada entrenador y tira el dado. El orden
+   * de turnos va del número más alto al más bajo; los que empatan vuelven a
+   * tirar entre ellos para ordenarse.
    */
   async function runOpening(run) {
     await view().openingIntro();
     if (!alive(run)) return;
-    let contenders = state.players.map((_, seat) => seat);
-    let round = 0;
-    let winner = 0;
-    for (;;) {
-      round++;
+
+    /** Cada uno de `group` tira el dado (con su presentación). Devuelve los números o null si se canceló. */
+    const rollAll = async (group, tiebreak) => {
       const rolls = new Map();
-      for (const seat of contenders) {
+      for (const seat of group) {
         const p = state.players[seat];
         state.current = seat; // el panel muestra a quién le toca tirar
         renderTurnPanel();
-        view().announce(round === 1 ? `¡${p.name}!` : `¡${p.name} desempata!`, p.color);
+        view().announce(tiebreak ? `¡${p.name} desempata!` : `¡${p.name}!`, p.color);
         Sound.cry(p.creature);
         const n = 1 + Math.floor(Math.random() * DICE_MAX);
         rolls.set(seat, n);
         Board.hitDice(n);
         await Promise.all([delay(1200), view().openingRoll(seat, n)]);
-        if (!alive(run)) return;
+        if (!alive(run)) return null;
         addLog(`🎲 ${p.name} sacó un ${n}.`, seat);
         renderLog();
       }
-      const best = Math.max(...rolls.values());
-      const top = contenders.filter((seat) => rolls.get(seat) === best);
-      if (top.length === 1) {
-        winner = top[0];
-        break;
+      return rolls;
+    };
+
+    /** Ordena `group` por sus dados (de mayor a menor); los empates se desempatan tirando de nuevo. */
+    const rank = async (group, tiebreak) => {
+      if (group.length < 2) return group;
+      const rolls = await rollAll(group, tiebreak);
+      if (!rolls) return null;
+      const values = [...new Set(rolls.values())].sort((a, b) => b - a);
+      const out = [];
+      for (const v of values) {
+        const tied = group.filter((seat) => rolls.get(seat) === v);
+        if (tied.length > 1) {
+          addLog(`🎲 ¡Empate en ${v} entre ${tied.map((seat) => state.players[seat].name).join(' y ')}! Desempatan.`, tied[0]);
+          view().announce(`¡Empate en ${v}!`, '#f8c630');
+          await delay(1400);
+          if (!alive(run)) return null;
+        }
+        const sub = await rank(tied, true);
+        if (!sub) return null;
+        out.push(...sub);
       }
-      const names = top.map((seat) => state.players[seat].name).join(' y ');
-      addLog(`🎲 ¡Empate en ${best} entre ${names}! Desempatan.`, top[0]);
-      view().announce(`¡Empate en ${best}!`, '#f8c630');
-      await delay(1400);
-      if (!alive(run)) return;
-      contenders = top;
-    }
+      return out;
+    };
+
+    const order = await rank(state.players.map((_, seat) => seat), false);
+    if (!order) return;
+    const winner = order[0];
     const starter = state.players[winner];
-    addLog(`🏁 ¡${starter.name} sacó el número más alto y empieza la partida!`, winner);
+    state.order = order;
+    addLog(`🏁 Orden de juego: ${order.map((seat) => state.players[seat].name).join(' → ')}.`, winner);
     toast(`¡A jugar! Empieza ${starter.name}`);
+    view().announce(`¡Empieza ${starter.name}!`, starter.color);
     state.current = winner;
     state.pending = null;
     state.phase = 'idle';
@@ -1774,6 +1805,7 @@
       phase: state.phase,
       busy,
       current: state.current,
+      order: turnOrder(),
       lastRoll: state.lastRoll,
       winner: state.winner,
       players: state.players.map((p) => ({

@@ -203,12 +203,12 @@ export function centerTexture() {
   ctx.strokeText('Pokémon', 0, -10);
   ctx.fillStyle = '#ffcb05';
   ctx.fillText('Pokémon', 0, -10);
-  ctx.font = '900 76px "Trebuchet MS", sans-serif';
-  ctx.lineWidth = 16;
+  ctx.font = '900 120px "Trebuchet MS", sans-serif';
+  ctx.lineWidth = 20;
   ctx.strokeStyle = '#ffffff';
-  ctx.strokeText('Carrera de Medallas', 0, 96);
+  ctx.strokeText('Party', 0, 112);
   ctx.fillStyle = '#e3350d';
-  ctx.fillText('Carrera de Medallas', 0, 96);
+  ctx.fillText('Party', 0, 112);
   ctx.restore();
   return makeTexture(canvas);
 }

@@ -1,4 +1,4 @@
-# Pokémon: Carrera de Medallas
+# Pokémon Party
 
 Juego de mesa de preguntas para 4 jugadores. La pantalla principal (la que
 se graba) muestra el tablero 3D. Cada jugador puede jugar desde su celular,
@@ -178,8 +178,9 @@ Alrededor del tablero 3D (`view3d/scenery.js`):
 Al empezar una partida, la cámara hace un recorrido de ~8 s por el diorama
 (un clic sobre el tablero lo saltea). Después viene la **ceremonia de inicio**:
 cada entrenador se presenta (cartel con su nombre y su grito) y golpea el
-bloque; el número más alto empieza. Si hay empate, desempatan solo los
-empatados. En una misma partida **no se repite ninguna pregunta**, ni siquiera
+bloque. **El orden de turnos sigue los dados**, del número más alto al más
+bajo; los que empatan vuelven a tirar entre ellos para ordenarse. La lista de
+entrenadores (y la del celular) se muestra en ese orden. En una misma partida **no se repite ninguna pregunta**, ni siquiera
 si el mismo texto está en dos categorías.
 
 - **Edificios:** son los de PokeSwap (`public/assets/town/models`, modelos de HeartGold/SoulSilver), copiados en `assets/town/` y dibujados por `view3d/townmodels.js`.

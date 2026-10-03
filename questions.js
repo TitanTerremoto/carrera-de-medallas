@@ -1,5 +1,5 @@
 /*
- * Banco de preguntas de "Carrera de Medallas".
+ * Banco de preguntas de «Pokémon Party».
  *
  * Para agregar una pregunta basta con sumar un objeto a la lista de su
  * categoría con este formato:
